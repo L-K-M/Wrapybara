@@ -400,7 +400,7 @@ extension SiteWindowController: NSToolbarDelegate {
             control.segmentStyle = .separated
             control.setEnabled(false, forSegment: 0)
             control.setEnabled(false, forSegment: 1)
-            navigationControl = control
+            if flag { navigationControl = control }
 
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = control
@@ -412,7 +412,13 @@ extension SiteWindowController: NSToolbarDelegate {
         case ToolbarItem.reload:
             let item = button(identifier, symbol: "arrow.clockwise", label: "Reload",
                               action: #selector(reloadPage(_:)))
-            reloadToolbarItem = item
+            // The delegate method also runs for the customization palette's
+            // throwaway copy (`flag == false`); capturing that would repoint the
+            // swap at an item nobody sees.
+            if flag {
+                reloadToolbarItem = item
+                updateReloadStopItem(isLoading: webController.webView.isLoading)
+            }
             return item
 
         case ToolbarItem.share:
@@ -431,7 +437,7 @@ extension SiteWindowController: NSToolbarDelegate {
             label.lineBreakMode = .byTruncatingMiddle
             label.alignment = .center
             label.isSelectable = true
-            addressLabel = label
+            if flag { addressLabel = label }
 
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = label
@@ -445,6 +451,9 @@ extension SiteWindowController: NSToolbarDelegate {
         }
     }
 
+    /// Builds an *image-based* toolbar item — no `item.view`. That invariant is
+    /// what `updateReloadStopItem` relies on: mutating `image`/`action` only
+    /// affects the UI for image-based items.
     private func button(_ identifier: NSToolbarItem.Identifier, symbol: String, label: String,
                         action: Selector) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: identifier)
