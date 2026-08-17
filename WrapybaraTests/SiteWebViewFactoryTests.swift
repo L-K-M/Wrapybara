@@ -8,32 +8,35 @@ import WebKit
 /// both that they're set and that the keys are still the ones that exist.
 final class SiteWebViewFactoryTests: XCTestCase {
 
-    private func configuredPreferences() -> WKPreferences {
+    /// Runs the factory against a fresh configuration and asserts `key` is present
+    /// and false. `value(forKey:)` on a key WebKit no longer knows raises an
+    /// uncatchable `NSUndefinedKeyException`, so the same `responds(to:)` probe
+    /// production uses comes first — a retired key fails readably rather than
+    /// crashing the test runner.
+    private func assertThrottlingDisabled(_ key: String) {
         let configuration = WKWebViewConfiguration()
         SiteWebViewFactory.preventHiddenPageThrottling(configuration)
-        return configuration.preferences
+        let preferences = configuration.preferences
+        XCTAssertTrue(preferences.responds(to: NSSelectorFromString("_\(key)")),
+                      "\(key) is no longer a known WKPreferences key")
+        XCTAssertFalse(preferences.value(forKey: key) as? Bool ?? true)
     }
 
     func testHiddenPageTimerThrottlingIsDisabled() {
-        let preferences = configuredPreferences()
-        XCTAssertFalse(preferences.value(forKey: "hiddenPageDOMTimerThrottlingEnabled") as? Bool ?? true)
+        assertThrottlingDisabled("hiddenPageDOMTimerThrottlingEnabled")
     }
 
     func testHiddenPageThrottlingDoesNotAutoIncrease() {
-        let preferences = configuredPreferences()
-        XCTAssertFalse(preferences.value(forKey: "hiddenPageDOMTimerThrottlingAutoIncreases") as? Bool ?? true)
+        assertThrottlingDisabled("hiddenPageDOMTimerThrottlingAutoIncreases")
     }
 
     func testPageVisibilityBasedProcessSuppressionIsDisabled() {
-        let preferences = configuredPreferences()
-        XCTAssertFalse(preferences.value(forKey: "pageVisibilityBasedProcessSuppressionEnabled") as? Bool ?? true)
+        assertThrottlingDisabled("pageVisibilityBasedProcessSuppressionEnabled")
     }
 
     /// Every key in the list must be one the running WebKit actually knows — a key
     /// WebKit stops recognising would crash `setValue` at runtime, so this guards
-    /// against the list silently going stale. `responds(to:)` rather than reading
-    /// the value back: reading an unknown key raises an uncatchable exception and
-    /// would crash the test runner instead of recording a readable failure.
+    /// against the list silently going stale.
     func testEveryConfiguredKeyExistsOnThisWebKit() {
         let configuration = WKWebViewConfiguration()
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {

@@ -276,7 +276,10 @@ Not one feature — the absence of twenty small failures.
   runtime opts out of that throttling (`SiteWebViewFactory`). The cost is battery
   when a wrap is hidden; that is the point. The opt-out rides undocumented
   `WKPreferences` keys set via KVC — fine under Developer ID distribution, but
-  re-review before any Mac App Store submission.
+  re-review before any Mac App Store submission. Release check: open a streaming
+  page in a wrap, cover or miniaturise the window for a minute, and confirm the
+  stream is still live — the unit tests pin the preference keys, not WebKit's
+  behaviour.
 
 ---
 

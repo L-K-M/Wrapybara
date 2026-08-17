@@ -47,6 +47,9 @@ enum SiteWebViewFactory {
             // private `_<key>` getter first is a reliable existence check that
             // cannot itself throw.
             guard configuration.preferences.responds(to: NSSelectorFromString("_\(key)")) else {
+                // A user whose macOS retired a key would otherwise silently get the
+                // throttling back — this log line is how that becomes a diagnosis.
+                NSLog("Wrapybara: WebKit no longer knows \(key); hidden-page throttle opt-out incomplete")
                 continue
             }
             configuration.preferences.setValue(false, forKey: key)
