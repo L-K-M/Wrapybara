@@ -224,14 +224,32 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Dock badge
 
     /// Mirrors the unread count a browser tab would show, read out of the page title.
+    ///
+    /// A browser's tab strip effectively shows the *maximum* unread count across
+    /// tabs, so the badge considers every open window rather than only the front one —
+    /// otherwise a background window's "(3) Inbox" never reaches the Dock.
     private func updateBadge() {
         guard wrap.behavior.showsBadgeFromTitle else {
             NSApp.dockTile.badgeLabel = nil
             return
         }
-        // The main window's title is the one a browser would put in the active tab.
-        let title = (frontWindowController ?? windowControllers.first)?.window?.title
-        NSApp.dockTile.badgeLabel = BadgeFromTitle.badge(for: title)
+        var bestCount: Int?
+        var hasMarker = false
+        for controller in windowControllers {
+            guard let title = controller.window?.title else { continue }
+            if let count = BadgeFromTitle.count(for: title) {
+                bestCount = max(bestCount ?? 0, count)
+            } else if BadgeFromTitle.badge(for: title) != nil {
+                hasMarker = true
+            }
+        }
+        if let bestCount {
+            NSApp.dockTile.badgeLabel = "\(bestCount)"
+        } else if hasMarker {
+            NSApp.dockTile.badgeLabel = "\u{2022}"
+        } else {
+            NSApp.dockTile.badgeLabel = nil
+        }
     }
 
     // MARK: Notifications
