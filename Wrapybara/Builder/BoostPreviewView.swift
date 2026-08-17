@@ -97,7 +97,10 @@ private struct PreviewWebView: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         // Re-apply on every edit. `SiteWebController.apply` re-evaluates the stylesheet
         // against the live page, so this is a restyle rather than a reload — the scroll
-        // position and any signed-in state stay put.
-        model.previewController?.apply(wrap: wrap, boost: boost)
+        // position and any signed-in state stay put. The coordinator owns the
+        // controller, so ask it directly rather than through the model's weak
+        // convenience reference; `BoostPreviewController.apply` itself skips the call
+        // when nothing the preview shows has changed.
+        context.coordinator.controller?.apply(wrap: wrap, boost: boost)
     }
 }

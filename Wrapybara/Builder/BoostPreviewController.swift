@@ -30,6 +30,10 @@ final class BoostPreviewController: NSObject {
 
     var view: NSView { webController.webView }
 
+    /// The last pair actually applied, so unrelated SwiftUI renders can be skipped.
+    private var lastAppliedWrap: Wrap?
+    private var lastAppliedBoost: Boost?
+
     // MARK: Contents
 
     /// A configuration carrying only the boost being edited.
@@ -55,7 +59,20 @@ final class BoostPreviewController: NSObject {
 
     /// Re-applies an edited boost without reloading the page, so the scroll position and
     /// any signed-in state survive a slider drag.
+    ///
+    /// The preview's `updateNSView` runs on *every* SwiftUI render — name-field
+    /// typing, sheet toggles, unrelated selection changes included — and each apply
+    /// rebuilds the injector, clears the matcher cache, reinstalls user scripts and
+    /// evaluates JavaScript against the page. Nothing the preview shows changed in
+    /// those cases, so skip them; `Wrap` and `Boost` are both `Equatable`, which is
+    /// precisely the "did anything the preview applies change?" question.
     func apply(wrap: Wrap, boost: Boost) {
+        if let lastAppliedWrap, let lastAppliedBoost,
+           lastAppliedWrap == wrap, lastAppliedBoost == boost {
+            return
+        }
+        lastAppliedWrap = wrap
+        lastAppliedBoost = boost
         webController.apply(Self.previewConfiguration(wrap: wrap, boost: boost))
     }
 
