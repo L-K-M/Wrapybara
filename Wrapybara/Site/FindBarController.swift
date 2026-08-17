@@ -94,6 +94,10 @@ final class FindBarController: NSObject {
     // MARK: Searching
 
     @objc private func searchFieldChanged() {
+        // Keep `lastQuery` in step even when the field is cleared: ⌘G must not
+        // repeat a query the user deliberately erased (the empty-string early
+        // return in `find` would otherwise leave the old value in place).
+        lastQuery = searchField.stringValue
         find(forward: true, fromUserTyping: true)
     }
 
