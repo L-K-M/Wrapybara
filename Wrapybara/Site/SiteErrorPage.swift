@@ -31,12 +31,17 @@ enum SiteErrorPage {
     /// Read off the error first: WebKit's failures carry the *post-redirect*
     /// destination (`A → 301 → B` failing at B reports B), while the URL the
     /// navigation was allowed for is the pre-redirect one. Naming — and retrying —
-    /// A would blame the wrong address and fail again on every Try Again.
+    /// A would blame the wrong address and fail again on every Try Again. Only
+    /// `http(s)` is accepted from the error itself (the value is typo- and
+    /// attacker-shaped); the fallbacks are the app's own URLs.
     static func failingURL(for error: Error, fallbacks: [URL?]) -> URL? {
         let userInfo = (error as NSError).userInfo
-        if let url = userInfo[NSURLErrorFailingURLErrorKey] as? URL { return url }
+        let webSchemes: Set<String> = ["http", "https"]
+        if let url = userInfo[NSURLErrorFailingURLErrorKey] as? URL,
+           webSchemes.contains(url.scheme?.lowercased() ?? "") { return url }
         if let string = userInfo[NSURLErrorFailingURLStringErrorKey] as? String,
-           let url = URL(string: string) { return url }
+           let url = URL(string: string),
+           webSchemes.contains(url.scheme?.lowercased() ?? "") { return url }
         return fallbacks.lazy.compactMap { $0 }.first
     }
 

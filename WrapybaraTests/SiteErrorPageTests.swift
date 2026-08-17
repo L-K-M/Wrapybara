@@ -92,6 +92,19 @@ final class SiteErrorPageTests: XCTestCase {
                        URL(string: "https://example.com/final"))
     }
 
+    func testFailingURLRejectsNonWebSchemesFromTheError() {
+        // The error's own values are typo- and attacker-shaped; only http(s) is
+        // taken from them, everything else falls through to the app's URLs.
+        let malicious = NSError(domain: NSURLErrorDomain, code: NSURLErrorBadURL,
+                                userInfo: [NSURLErrorFailingURLStringErrorKey: "javascript:alert(1)"])
+        let safe = URL(string: "https://fallback.example.com")!
+        XCTAssertEqual(SiteErrorPage.failingURL(for: malicious, fallbacks: [safe]), safe)
+
+        let dataURL = NSError(domain: NSURLErrorDomain, code: NSURLErrorBadURL,
+                              userInfo: [NSURLErrorFailingURLStringErrorKey: "data:text/html,hi"])
+        XCTAssertEqual(SiteErrorPage.failingURL(for: dataURL, fallbacks: [safe]), safe)
+    }
+
     func testFallingBackInOrder() {
         let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         let first = URL(string: "https://a.example.com")!

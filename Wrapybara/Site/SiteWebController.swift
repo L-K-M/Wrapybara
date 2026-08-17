@@ -247,6 +247,15 @@ extension SiteWebController: WKNavigationDelegate {
 
         switch decision {
         case .allow:
+            // The error page's own `loadHTMLString` arrives here as about:blank
+            // (when WebKit consults policy for it): let it through without
+            // churning the installed boosts — they were built for the failed URL
+            // and are what styles the error page — and without clobbering the
+            // tracked address we're about to need on the next failure.
+            if url.absoluteString == "about:blank" {
+                decisionHandler(.allow, preferences)
+                return
+            }
             if boostedURL != url { installBoosts(for: url) }
             lastRequestedURL = url
             decisionHandler(.allow, preferences)
@@ -316,10 +325,13 @@ extension SiteWebController: WKNavigationDelegate {
         let failedURL = SiteErrorPage.failingURL(
             for: error,
             fallbacks: [lastRequestedURL, webView.url, wrap.homeURL]) ?? wrap.homeURL
+        // baseURL about:blank keeps the page at an opaque origin rather than the
+        // failed site's — nothing on it needs the site origin (the retry link is
+        // absolute), and the page displays the failed address itself.
         webView.loadHTMLString(
             SiteErrorPage.html(wrapName: wrap.name, failedURL: failedURL,
                                error: error, tintHex: wrap.icon.tintHex),
-            baseURL: failedURL)
+            baseURL: URL(string: "about:blank"))
     }
 }
 
