@@ -38,6 +38,10 @@ final class SiteWebController: NSObject {
     /// The URL the boosts currently installed on the web view were built for. Used to
     /// avoid rebuilding user scripts on every same-page fragment change.
     private var boostedURL: URL?
+    /// The last main-frame URL this controller allowed a load for. After a
+    /// provisional failure the web view still reports the *previous* page's URL,
+    /// so the error page needs this to say what actually failed.
+    private var lastRequestedURL: URL?
     private var observations: [NSKeyValueObservation] = []
     /// Retained so WebKit's script-message registration keeps working — see
     /// `ScriptMessageForwarder`.
@@ -84,6 +88,7 @@ final class SiteWebController: NSObject {
 
     func load(_ url: URL) {
         installBoosts(for: url)
+        lastRequestedURL = url
         webView.load(URLRequest(url: url))
     }
 
@@ -243,6 +248,7 @@ extension SiteWebController: WKNavigationDelegate {
         switch decision {
         case .allow:
             if boostedURL != url { installBoosts(for: url) }
+            lastRequestedURL = url
             decisionHandler(.allow, preferences)
         case .openInNewTab:
             decisionHandler(.cancel, preferences)
@@ -302,6 +308,16 @@ extension SiteWebController: WKNavigationDelegate {
         }
         NSLog("Wrapybara: navigation failed: \(error.localizedDescription)")
         delegate?.siteWebControllerDidChangeState(self)
+
+        // Without this the failure leaves a blank white window. The page says what
+        // went wrong and offers Try Again — an ordinary link, so the retry flows
+        // through NavigationPolicy like any in-app click.
+        guard SiteErrorPage.shouldShow(for: error) else { return }
+        let failedURL = lastRequestedURL ?? webView.url ?? wrap.homeURL
+        webView.loadHTMLString(
+            SiteErrorPage.html(wrapName: wrap.name, failedURL: failedURL,
+                               error: error, tintHex: wrap.icon.tintHex),
+            baseURL: failedURL)
     }
 }
 
