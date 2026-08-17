@@ -109,7 +109,7 @@ final class SiteWebController: NSObject {
         // Configuration updates arrive from the watcher and from live SwiftUI edits;
         // both are main-queue by construction, and everything below (WKWebView
         // properties, KVO-driven state) is main-thread-only.
-        dispatchPrecondition(condition: .onMain)
+        dispatchPrecondition(condition: .onQueue(.main))
 
         // Scalars captured before `configuration` is replaced, so the diff is
         // against the *old* values no matter how a future refactor shapes the
