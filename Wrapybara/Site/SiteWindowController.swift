@@ -160,9 +160,26 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     @objc func sharePage(_ sender: Any?) {
         guard let url = webController.webView.url else { return }
         let picker = NSSharingServicePicker(items: [url])
-        let anchor = (sender as? NSView) ?? window?.contentView
+
+        // Anchor the menu to whatever asked for it. A toolbar item sends *itself* as
+        // the sender (and NSToolbarItem isn't a view), so fall through to its view;
+        // a menu item sends the item, in which case the best anchor is the top of
+        // the content area — not the zero rect at the content view's bottom-left
+        // corner, which is where this used to pop up from.
+        var anchor: NSView?
+        var rect = NSRect.zero
+        if let item = sender as? NSToolbarItem, let view = item.view {
+            anchor = view
+            rect = view.bounds
+        } else if let view = sender as? NSView {
+            anchor = view
+            rect = view.bounds
+        } else if let content = window?.contentView {
+            anchor = content
+            rect = NSRect(x: 0, y: content.bounds.maxY, width: 1, height: 1)
+        }
         guard let anchor else { return }
-        picker.show(relativeTo: .zero, of: anchor, preferredEdge: .minY)
+        picker.show(relativeTo: rect, of: anchor, preferredEdge: .minY)
     }
 
     @objc func copyPageAddress(_ sender: Any?) {
