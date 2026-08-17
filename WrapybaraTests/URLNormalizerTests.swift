@@ -105,6 +105,8 @@ final class URLNormalizerTests: XCTestCase {
         XCTAssertEqual(suggested("http://127.0.0.1/admin"), "127.0.0.1")
         // An IPv6 literal has no usable label at all; empty means "ask the site".
         XCTAssertEqual(suggested("http://[::1]:3000"), "")
+        // FQDN-style trailing dots don't survive into the name.
+        XCTAssertEqual(suggested("http://1.2.3.4./"), "1.2.3.4")
     }
 
     func testSuggestedNameForNumericLabelDomains() {

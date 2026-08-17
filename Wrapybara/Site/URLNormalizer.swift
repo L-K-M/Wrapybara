@@ -90,7 +90,11 @@ enum URLNormalizer {
         // while "192.168.1.1" is named honestly. (ASCII digits only: `isNumber`
         // alone would also match non-ASCII numerics like ² or ٣, which can appear
         // in IDN labels and say nothing about being an IP.)
-        if labels.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }) { return host }
+        if labels.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }) {
+            // `labels`, not the raw host: an FQDN-style trailing dot ("1.2.3.4.")
+            // is invisible to the label walk but would end the name in a stray dot.
+            return labels.joined(separator: ".")
+        }
         return label.prefix(1).uppercased() + label.dropFirst()
     }
 }
