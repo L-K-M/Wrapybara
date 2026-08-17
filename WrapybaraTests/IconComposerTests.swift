@@ -45,6 +45,8 @@ final class IconComposerTests: XCTestCase {
         let artwork = solidImage(width: 400, height: 100, color: .red)
         let composed = IconComposer.compose(artwork: artwork, style: .plate, plateColor: .blue)
         let rep = try bitmap(for: composed)
+        // The sample coordinates below assume a 1024-pt canvas.
+        XCTAssertEqual(composed.size, NSSize(width: 1024, height: 1024))
 
         let center = try XCTUnwrap(rep.colorAt(x: 512, y: 512))
         XCTAssertGreaterThan(center.redComponent, 0.8, "the fitted artwork should cover the centre")
@@ -62,6 +64,8 @@ final class IconComposerTests: XCTestCase {
         let artwork = solidImage(width: 400, height: 100, color: .red)
         let composed = IconComposer.compose(artwork: artwork, style: .asIs, plateColor: .blue)
         let rep = try bitmap(for: composed)
+        // The sample coordinates below assume a 1024-pt canvas.
+        XCTAssertEqual(composed.size, NSSize(width: 1024, height: 1024))
 
         let center = try XCTUnwrap(rep.colorAt(x: 512, y: 512))
         XCTAssertGreaterThan(center.redComponent, 0.8)

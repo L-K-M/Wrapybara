@@ -129,18 +129,23 @@ enum IconComposer {
     /// The largest rect of `size`'s aspect ratio that fits inside `bounds`, centered.
     ///
     /// Artwork is fitted, never stretched: a wide or tall logo squashed into a square
-    /// reads far worse than the transparent bands letterboxing leaves.
+    /// reads far worse than the transparent bands letterboxing leaves. A degenerate
+    /// (zero) size falls back to the full bounds — the one stretch path left, since
+    /// there is no aspect to preserve.
     static func aspectFit(size: NSSize, in bounds: NSRect) -> NSRect {
         guard size.width > 0, size.height > 0 else { return bounds }
         let scale = min(bounds.width / size.width, bounds.height / size.height)
         let fitted = NSSize(width: size.width * scale, height: size.height * scale)
-        // `.integral` snaps to whole points: a fractional origin antialiases the
-        // artwork's edges, which is exactly what the small icns sizes show. The
-        // boxes passed in are integral, so rounding outward stays within a point.
-        return NSRect(x: bounds.midX - fitted.width / 2,
-                      y: bounds.midY - fitted.height / 2,
-                      width: fitted.width,
-                      height: fitted.height).integral
+        // Whole points keep the edges crisp, but round to nearest rather than
+        // `.integral`: integral rects only ever grow, and up to ~1 pt of growth per
+        // axis is a visible aspect change at the small icns sizes (a 5:1 wordmark
+        // fitted into 16×16 wants 16×3, not 16×4).
+        let width = max(fitted.width.rounded(), 1)
+        let height = max(fitted.height.rounded(), 1)
+        return NSRect(x: bounds.minX + ((bounds.width - width) / 2).rounded(),
+                      y: bounds.minY + ((bounds.height - height) / 2).rounded(),
+                      width: width,
+                      height: height)
     }
 
     /// The plate colour for a wrap: its stored tint, or Wrapybara's brown.
