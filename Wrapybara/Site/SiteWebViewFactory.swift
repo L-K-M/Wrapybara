@@ -32,6 +32,18 @@ enum SiteWebViewFactory {
         "pageVisibilityBasedProcessSuppressionEnabled",
     ]
 
+    /// The `_set<Key>:` selector KVC resolves for `key`.
+    ///
+    /// `setValue(_:forKey:)` looks for `set<Key>:` then `_set<Key>:`, and these
+    /// keys expose only the `_set` form. A key WebKit has retired raises an
+    /// uncatchable `NSUndefinedKeyException` from `setValue`, so this existence
+    /// check has to match exactly what `setValue` will call. The trailing colon
+    /// matters: a setter takes an argument, so its selector is
+    /// `_setHiddenPageDOMTimerThrottlingEnabled:`, not `...Enabled`.
+    static func setterName(for key: String) -> String {
+        "_set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
+    }
+
     /// Opts `configuration` out of macOS's hidden-page throttling.
     ///
     /// The trade-off is battery: a hidden wrap keeps running its page's timers,
@@ -42,11 +54,7 @@ enum SiteWebViewFactory {
     /// is there to catch in CI, loudly, before a release.
     static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
         for key in hiddenPageThrottlingPreferenceKeys {
-            // `setValue(_:forKey:)` on a key the class no longer knows raises
-            // `NSUndefinedKeyException`, which Swift cannot catch — probing the
-            // private `_<key>` getter first is a reliable existence check that
-            // cannot itself throw.
-            guard configuration.preferences.responds(to: NSSelectorFromString("_\(key)")) else {
+            guard configuration.preferences.responds(to: NSSelectorFromString(setterName(for: key))) else {
                 // A user whose macOS retired a key would otherwise silently get the
                 // throttling back — this log line is how that becomes a diagnosis.
                 NSLog("Wrapybara: WebKit no longer knows \(key); hidden-page throttle opt-out incomplete")

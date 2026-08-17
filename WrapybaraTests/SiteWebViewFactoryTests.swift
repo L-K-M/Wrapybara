@@ -10,15 +10,17 @@ final class SiteWebViewFactoryTests: XCTestCase {
 
     /// Runs the factory against a fresh configuration and asserts `key` is present
     /// and false. `value(forKey:)` on a key WebKit no longer knows raises an
-    /// uncatchable `NSUndefinedKeyException`, so the same `responds(to:)` probe
-    /// production uses comes first — a retired key fails readably rather than
-    /// crashing the test runner.
+    /// uncatchable `NSUndefinedKeyException`, so the same setter probe production
+    /// uses comes first — and this time it has to halt execution, because
+    /// `XCTAssertTrue` only records a failure and would let the read through.
     private func assertThrottlingDisabled(_ key: String) {
         let configuration = WKWebViewConfiguration()
         SiteWebViewFactory.preventHiddenPageThrottling(configuration)
         let preferences = configuration.preferences
-        XCTAssertTrue(preferences.responds(to: NSSelectorFromString("_\(key)")),
-                      "\(key) is no longer a known WKPreferences key")
+        guard preferences.responds(to: NSSelectorFromString(SiteWebViewFactory.setterName(for: key))) else {
+            XCTFail("\(key) is no longer a known WKPreferences key")
+            return
+        }
         XCTAssertFalse(preferences.value(forKey: key) as? Bool ?? true)
     }
 
@@ -40,8 +42,9 @@ final class SiteWebViewFactoryTests: XCTestCase {
     func testEveryConfiguredKeyExistsOnThisWebKit() {
         let configuration = WKWebViewConfiguration()
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {
-            XCTAssertTrue(configuration.preferences.responds(to: NSSelectorFromString("_\(key)")),
-                          "\(key) is no longer a known WKPreferences key")
+            XCTAssertTrue(configuration.preferences
+                .responds(to: NSSelectorFromString(SiteWebViewFactory.setterName(for: key))),
+                "\(key) is no longer a known WKPreferences key")
         }
     }
 }
