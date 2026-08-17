@@ -101,6 +101,13 @@ private struct PreviewWebView: NSViewRepresentable {
         // controller, so ask it directly rather than through the model's weak
         // convenience reference; `BoostPreviewController.apply` itself skips the call
         // when nothing the preview shows has changed.
-        context.coordinator.controller?.apply(wrap: wrap, boost: boost)
+        guard let controller = context.coordinator.controller else {
+            // `makeNSView` assigns it before any update can arrive; landing here means
+            // the representable was built wrong, which is a bug worth hearing about in
+            // debug builds and a silent no-op in release.
+            assertionFailure("coordinator.controller must be set before updateNSView")
+            return
+        }
+        controller.apply(wrap: wrap, boost: boost)
     }
 }
