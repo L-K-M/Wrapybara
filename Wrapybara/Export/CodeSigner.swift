@@ -76,10 +76,12 @@ enum CodeSigner {
         if identity == adHocIdentity {
             // Timestamps need the network and a real identity; an ad-hoc signature
             // can't carry one, and a wrap built on a plane should still build.
-            // A Developer ID signature keeps the default secure timestamp instead:
-            // notarization requires one, and a timestamped signature is what keeps
-            // the "no Gatekeeper warning" promise in Settings honest.
             arguments.append("--timestamp=none")
+        } else {
+            // A Developer ID signature keeps a secure timestamp — explicit rather
+            // than relying on the toolchain default, per Apple's notarization
+            // guidance. This is the step that touches the network.
+            arguments.append("--timestamp")
         }
         if let entitlements {
             arguments.append(contentsOf: ["--entitlements", entitlements.path])
