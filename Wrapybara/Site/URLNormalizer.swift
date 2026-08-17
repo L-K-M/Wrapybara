@@ -85,11 +85,12 @@ enum URLNormalizer {
         }
         let label = (index >= 0 && index < labels.count) ? labels[index] : labels[0]
         guard !label.isEmpty else { return "" }
-        // An all-ASCII-digit label means the host is an IP address, and "1" is not
-        // an app name. The full address ("192.168.1.1") at least names it honestly.
-        // (`isNumber` alone would also match non-ASCII numerics like ² or ٣, which
-        // can appear in IDN labels and say nothing about being an IP.)
-        if label.allSatisfy({ $0.isASCII && $0.isNumber }) { return host }
+        // Every label being ASCII digits is the real IP signal — TLDs are never
+        // numeric, so a mixed host like "163.com" still gets its label ("163"),
+        // while "192.168.1.1" is named honestly. (ASCII digits only: `isNumber`
+        // alone would also match non-ASCII numerics like ² or ٣, which can appear
+        // in IDN labels and say nothing about being an IP.)
+        if labels.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }) { return host }
         return label.prefix(1).uppercased() + label.dropFirst()
     }
 }

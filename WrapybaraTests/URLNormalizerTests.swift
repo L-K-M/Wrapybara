@@ -107,6 +107,13 @@ final class URLNormalizerTests: XCTestCase {
         XCTAssertEqual(suggested("http://[::1]:3000"), "")
     }
 
+    func testSuggestedNameForNumericLabelDomains() {
+        // A numeric *label* alone doesn't make an IP — 163.com and 4399.com are
+        // real sites whose name is the number.
+        XCTAssertEqual(suggested("https://163.com"), "163")
+        XCTAssertEqual(suggested("https://4399.com"), "4399")
+    }
+
     private func suggested(_ string: String) -> String {
         URLNormalizer.suggestedName(for: URL(string: string)!)
     }
