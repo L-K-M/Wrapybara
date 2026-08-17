@@ -53,7 +53,8 @@ enum IconComposer {
                 drawPlate(color: plateColor)
                 let artworkEdge = plateEdge * artworkFraction
                 let origin = (canvas - artworkEdge) / 2
-                artwork.draw(in: NSRect(x: origin, y: origin, width: artworkEdge, height: artworkEdge),
+                let box = NSRect(x: origin, y: origin, width: artworkEdge, height: artworkEdge)
+                artwork.draw(in: aspectFit(size: artwork.size, in: box),
                              from: .zero, operation: .sourceOver, fraction: 1)
                 return true
             }
@@ -113,11 +114,26 @@ enum IconComposer {
     /// image; drawing it once into a known-size canvas gives everything downstream
     /// one predictable representation to work with.
     static func redraw(_ image: NSImage, edge: CGFloat) -> NSImage {
-        NSImage(size: NSSize(width: edge, height: edge), flipped: false) { _ in
-            image.draw(in: NSRect(x: 0, y: 0, width: edge, height: edge),
+        let canvasRect = NSRect(x: 0, y: 0, width: edge, height: edge)
+        return NSImage(size: NSSize(width: edge, height: edge), flipped: false) { _ in
+            image.draw(in: aspectFit(size: image.size, in: canvasRect),
                        from: .zero, operation: .sourceOver, fraction: 1)
             return true
         }
+    }
+
+    /// The largest rect of `size`'s aspect ratio that fits inside `bounds`, centered.
+    ///
+    /// Artwork is fitted, never stretched: a wide or tall logo squashed into a square
+    /// reads far worse than the transparent bands letterboxing leaves.
+    static func aspectFit(size: NSSize, in bounds: NSRect) -> NSRect {
+        guard size.width > 0, size.height > 0 else { return bounds }
+        let scale = min(bounds.width / size.width, bounds.height / size.height)
+        let fitted = NSSize(width: size.width * scale, height: size.height * scale)
+        return NSRect(x: bounds.midX - fitted.width / 2,
+                      y: bounds.midY - fitted.height / 2,
+                      width: fitted.width,
+                      height: fitted.height)
     }
 
     /// The plate colour for a wrap: its stored tint, or Wrapybara's brown.
