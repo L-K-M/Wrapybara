@@ -183,7 +183,11 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
                           width: 1, height: 1)
         }
         guard let anchor else { return }
-        picker.show(relativeTo: rect, of: anchor, preferredEdge: .minY)
+        // The edge is read in the anchor view's coordinate system too: `.minY` is
+        // visually below the rect in an unflipped view and above it in a flipped
+        // one, so follow the same flip the rect does.
+        picker.show(relativeTo: rect, of: anchor,
+                    preferredEdge: anchor.isFlipped ? .maxY : .minY)
     }
 
     @objc func copyPageAddress(_ sender: Any?) {
