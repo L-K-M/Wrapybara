@@ -224,6 +224,8 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
 
     private var addressLabel: NSTextField?
     private var navigationControl: NSSegmentedControl?
+    /// Weak: the toolbar owns its items, and a customised-out item should die.
+    private weak var reloadToolbarItem: NSToolbarItem?
 
     private func installToolbar() {
         let toolbar = NSToolbar(identifier: "SiteToolbar")
@@ -256,8 +258,30 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         navigationControl?.setEnabled(webView.canGoForward, forSegment: 1)
         addressLabel?.stringValue = webView.url.map { URLNormalizer.displayString(for: $0) } ?? ""
 
+        updateReloadStopItem(isLoading: webView.isLoading)
+
         updateUserActivity()
         onPageChanged?(self)
+    }
+
+    /// Swaps the toolbar's reload button for a stop button while a load is in
+    /// flight — the one piece of loading feedback a toolbar owes the user. The
+    /// View menu's Stop Loading has always validated correctly; the toolbar had
+    /// no state at all.
+    private func updateReloadStopItem(isLoading: Bool) {
+        guard let item = reloadToolbarItem else { return }
+        if isLoading {
+            item.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Stop")
+            item.action = #selector(stopLoading(_:))
+            item.label = "Stop"
+            item.toolTip = "Stop loading this page"
+        } else {
+            item.image = NSImage(systemSymbolName: "arrow.clockwise",
+                                 accessibilityDescription: "Reload")
+            item.action = #selector(reloadPage(_:))
+            item.label = "Reload"
+            item.toolTip = "Reload this page"
+        }
     }
 
     /// Publishes the current page as a browsing activity, so Handoff can pick it up on
@@ -386,8 +410,10 @@ extension SiteWindowController: NSToolbarDelegate {
             return item
 
         case ToolbarItem.reload:
-            return button(identifier, symbol: "arrow.clockwise", label: "Reload",
-                          action: #selector(reloadPage(_:)))
+            let item = button(identifier, symbol: "arrow.clockwise", label: "Reload",
+                              action: #selector(reloadPage(_:)))
+            reloadToolbarItem = item
+            return item
 
         case ToolbarItem.share:
             let item = button(identifier, symbol: "square.and.arrow.up", label: "Share",
