@@ -269,6 +269,12 @@ Not one feature — the absence of twenty small failures.
   none to embedders — off by default, because replacing a page global is intrusive.
 - **Sessions are per app.** Each wrap has its own bundle identifier and therefore
   its own WebKit data directory. Two wraps of one site hold two different logins.
+- **A covered window keeps the page running.** macOS throttles a hidden page's DOM
+  timers to about once a second and, after a delay, suspends the WebContent
+  process; a streaming chat then freezes the moment its window is covered or the
+  display sleeps. A wrap is a single-tab app, not a background browser tab, so the
+  runtime opts out of that throttling (`SiteWebViewFactory`). The cost is battery
+  when a wrap is hidden; that is the point.
 
 ---
 

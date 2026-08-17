@@ -10,6 +10,41 @@ import WebKit
 /// and inline media.
 enum SiteWebViewFactory {
 
+    /// The `WKPreferences` keys that make a hidden page stop throttling.
+    ///
+    /// macOS treats a wrap whose window is covered, miniaturised, on another
+    /// Space, or behind a sleeping display as "hidden", and WebKit then throttles
+    /// the page's DOM timers to about once a second — and after a delay suspends
+    /// the WebContent process entirely. A streaming chat is driven by timers, so
+    /// the moment its window is covered it stops updating even though the server
+    /// is still sending; and once the process is suspended the stream dies with
+    /// no recovery short of a reload. Safari can afford that for a background
+    /// tab; a wrap is the whole app, so it should keep running the way a native
+    /// app does.
+    ///
+    /// These are the undocumented preferences Playwright, Bun and MacPin set for
+    /// exactly this reason (they're the WebKit-internal controls for hidden-page
+    /// throttling). Set through KVC because they carry a leading underscore and
+    /// so have no public Swift surface.
+    static let hiddenPageThrottlingPreferenceKeys = [
+        "hiddenPageDOMTimerThrottlingEnabled",
+        "hiddenPageDOMTimerThrottlingAutoIncreases",
+        "pageVisibilityBasedProcessSuppressionEnabled",
+    ]
+
+    /// Opts `configuration` out of macOS's hidden-page throttling.
+    ///
+    /// The trade-off is battery: a hidden wrap keeps running its page's timers,
+    /// which is precisely the point. The keys are undocumented but have been
+    /// stable since macOS 10.12 and are the same ones Playwright, Bun and MacPin
+    /// set; `setValue` for a key WebKit no longer knows raises an exception,
+    /// which is the loud way to discover this list needs revisiting.
+    static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
+        for key in hiddenPageThrottlingPreferenceKeys {
+            configuration.preferences.setValue(false, forKey: key)
+        }
+    }
+
     /// - Parameter handler: receives the page's messages — the picker's selection, the
     ///   notification shim's payloads, soft navigations.
     static func makeWebView(for wrap: Wrap,
@@ -22,6 +57,8 @@ enum SiteWebViewFactory {
         // extra is needed, and using a non-persistent store here would silently sign
         // the user out on every quit.
         configuration.websiteDataStore = .default()
+
+        preventHiddenPageThrottling(configuration)
 
         configuration.suppressesIncrementalRendering = false
         configuration.mediaTypesRequiringUserActionForPlayback = .audio
