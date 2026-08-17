@@ -38,6 +38,19 @@ extension LibraryModel {
         return store.library.sharedBoosts.first { $0.id == boost.id }
     }
 
+    // MARK: Presets
+
+    /// Adds a ready-made boost to the shared shelf, selected and switched on for no
+    /// wrap yet — exactly like an import, minus the file.
+    func addPreset(_ boost: Boost) {
+        var copy = boost
+        // A fresh id, so re-adding a preset after renaming (or deleting) the first
+        // copy can never collide with an id that already lives on the shelf.
+        copy.id = UUID()
+        store.addSharedBoost(copy)
+        selectedBoostID = copy.id
+    }
+
     // MARK: Boost files
 
     /// The extension for an exported boost.

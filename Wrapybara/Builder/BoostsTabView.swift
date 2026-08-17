@@ -43,8 +43,9 @@ struct BoostsTabView: View {
 
                 Section("Shared boosts") {
                     if model.store.library.sharedBoosts.isEmpty {
-                        Text("None yet")
-                            .font(.callout)
+                        Text("Shared boosts are switched on per app — add a preset or import "
+                             + "a .wrapyboost file.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     ForEach(model.store.library.sharedBoosts) { boost in
@@ -82,6 +83,20 @@ struct BoostsTabView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(model.selectedBoost == nil)
+                Menu {
+                    ForEach(PresetBoosts.all) { preset in
+                        Button(preset.name) { model.addPreset(preset) }
+                            .disabled(model.store.library.sharedBoosts.contains {
+                                $0.name == preset.name
+                            })
+                    }
+                } label: {
+                    Image(systemName: "sparkles")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Add a ready-made boost to the shared shelf")
                 Spacer()
                 Button { model.importBoostsFromPanel() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(.borderless)
