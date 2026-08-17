@@ -46,6 +46,39 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// The Dock tile's right-click menu — the actions a person actually reaches for
+    /// from the Dock, rather than the macOS defaults alone.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        // Explicit targets: a targetless Dock item would walk the responder chain,
+        // and these actions all belong to the app delegate, not any window.
+        let newWindowItem = menu.addItem(withTitle: "New Window",
+                                         action: #selector(newWindow(_:)), keyEquivalent: "")
+        newWindowItem.target = self
+        if wrap.behavior.allowsNativeTabs {
+            let newTabItem = menu.addItem(withTitle: "New Tab",
+                                          action: #selector(newTab(_:)), keyEquivalent: "")
+            newTabItem.target = self
+        }
+        menu.addItem(.separator())
+        let homeItem = menu.addItem(withTitle: "Go to Home Page",
+                                    action: #selector(goHomeFromDock(_:)), keyEquivalent: "")
+        homeItem.target = self
+        return menu
+    }
+
+    /// Dock-menu "Go to Home Page": the front window navigates home; with no window
+    /// open, one is made for it (the same recovery `applicationShouldHandleReopen`
+    /// performs for a plain click).
+    @objc private func goHomeFromDock(_ sender: Any?) {
+        NSApp.activate(ignoringOtherApps: true)
+        if let controller = frontWindowController ?? windowControllers.first {
+            controller.loadHome()
+        } else {
+            openWindow(url: nil, asTabOf: nil)
+        }
+    }
+
     /// Quit when the last window closes, unless the wrap asked to stay resident.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         !wrap.behavior.staysRunningWithoutWindows
