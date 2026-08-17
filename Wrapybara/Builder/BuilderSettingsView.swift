@@ -126,10 +126,18 @@ struct BuilderSettingsView: View {
         }
         .frame(width: 560, height: 620)
         .task {
-            // Both of these shell out, so they're done once when the sheet opens rather
-            // than on every redraw.
-            identities = CodeSigner.availableSigningIdentities()
-            isToolchainAvailable = CodeSigner.isAvailable
+            // Both probes shell out (`security find-identity`, `xcode-select -p`)
+            // through ProcessRunner, which blocks the calling thread until the
+            // tool exits — so they run off the main actor, and their results hop
+            // back. Done once when the sheet opens rather than on every redraw.
+            let probed = await Task.detached {
+                (identities: CodeSigner.availableSigningIdentities(),
+                 toolchain: CodeSigner.isAvailable)
+            }.value
+            await MainActor.run {
+                identities = probed.identities
+                isToolchainAvailable = probed.toolchain
+            }
         }
     }
 
