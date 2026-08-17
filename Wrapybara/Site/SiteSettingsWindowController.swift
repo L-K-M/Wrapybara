@@ -28,6 +28,18 @@ final class SiteSettingsWindowController: NSWindowController {
     required init?(coder: NSCoder) {
         fatalError("SiteSettingsWindowController is created in code, not from a nib")
     }
+
+    /// Re-points the window at a fresh configuration.
+    ///
+    /// A boost edited in Wrapybara while this window was open shouldn't leave it
+    /// showing the values from whenever it was opened — the whole point of the
+    /// window is to say what this app is doing *now*.
+    func refresh(with configuration: WrapConfiguration) {
+        guard let hosting = contentViewController as? NSHostingController<SiteSettingsView> else {
+            return
+        }
+        hosting.rootView = SiteSettingsView(configuration: configuration)
+    }
 }
 
 /// The contents of a site app's Settings window.

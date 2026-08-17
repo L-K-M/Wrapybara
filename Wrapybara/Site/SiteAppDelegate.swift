@@ -218,6 +218,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
         for controller in windowControllers {
             controller.apply(fresh)
         }
+        settingsWindow?.refresh(with: fresh)
         updateBadge()
     }
 
