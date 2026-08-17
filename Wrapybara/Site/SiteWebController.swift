@@ -106,32 +106,48 @@ final class SiteWebController: NSObject {
     /// Replaces the configuration — a boost was edited in Wrapybara while this app was
     /// running — and re-applies it to the page currently on screen.
     func apply(_ newConfiguration: WrapConfiguration) {
-        let oldBehavior = configuration.wrap.behavior
+        // Configuration updates arrive from the watcher and from live SwiftUI edits;
+        // both are main-queue by construction, and everything below (WKWebView
+        // properties, KVO-driven state) is main-thread-only.
+        dispatchPrecondition(condition: .onMain)
+
+        // Scalars captured before `configuration` is replaced, so the diff is
+        // against the *old* values no matter how a future refactor shapes the
+        // types — and because two stored values are what's actually being compared.
+        let oldPageZoom = configuration.wrap.behavior.pageZoom
+        let oldUserAgent = configuration.wrap.behavior.resolvedUserAgent
+        let newBehavior = newConfiguration.wrap.behavior
+        let newUserAgent = newBehavior.resolvedUserAgent
+
         configuration = newConfiguration
         injector = BoostInjector(configuration: newConfiguration)
         BoostMatcher.clearCache()
         boostedURL = nil
+
+        // A deliberate user-agent change applies to the *next* load — reload so it
+        // takes effect on the page on screen too. The reload is a full document
+        // load, and `WKUserScript`s run per document, so the in-place re-style
+        // below is skipped rather than applied and immediately discarded.
+        let userAgentChanged = newUserAgent != oldUserAgent
+        if userAgentChanged {
+            webView.customUserAgent = newUserAgent
+        }
+
         if let url = webView.url {
-            installBoosts(for: url)
-            reapplyStylesheet(for: url)
-        }
-        // Push view-level settings only when they actually changed. This runs on
-        // every live configuration edit — the "drag a slider in Wrapybara, watch
-        // the app restyle" path — and unconditionally resetting `pageZoom` would
-        // snap a user's ⌘+ zoom back to the default on every keystroke there.
-        let newBehavior = newConfiguration.wrap.behavior
-        if newBehavior.pageZoom != oldBehavior.pageZoom {
-            webView.pageZoom = newBehavior.pageZoom
-        }
-        let newAgent = newBehavior.resolvedUserAgent
-        if newAgent != oldBehavior.resolvedUserAgent {
-            webView.customUserAgent = newAgent
-            // customUserAgent only applies to *subsequent* loads — the page on
-            // screen keeps the old UA until it's reloaded, so a deliberate UA
-            // change reloads. (Gated on the change, so ordinary boost edits don't.)
-            if webView.url != nil {
+            if userAgentChanged {
                 webView.reload()
+            } else {
+                installBoosts(for: url)
+                reapplyStylesheet(for: url)
             }
+        }
+
+        // Zoom is pushed only when it actually changed: this runs on every live
+        // configuration edit — the "drag a slider in Wrapybara, watch the app
+        // restyle" path — and unconditionally resetting `pageZoom` would snap a
+        // user's ⌘+ zoom back to the default on every keystroke there.
+        if newBehavior.pageZoom != oldPageZoom {
+            webView.pageZoom = newBehavior.pageZoom
         }
         delegate?.siteWebControllerDidChangeState(self)
     }
