@@ -126,6 +126,12 @@ final class SiteWebController: NSObject {
         let newAgent = newBehavior.resolvedUserAgent
         if newAgent != oldBehavior.resolvedUserAgent {
             webView.customUserAgent = newAgent
+            // customUserAgent only applies to *subsequent* loads — the page on
+            // screen keeps the old UA until it's reloaded, so a deliberate UA
+            // change reloads. (Gated on the change, so ordinary boost edits don't.)
+            if webView.url != nil {
+                webView.reload()
+            }
         }
         delegate?.siteWebControllerDidChangeState(self)
     }
