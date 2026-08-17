@@ -35,13 +35,25 @@ enum SiteWebViewFactory {
     /// The `_set<Key>:` selector KVC resolves for `key`.
     ///
     /// `setValue(_:forKey:)` looks for `set<Key>:` then `_set<Key>:`, and these
-    /// keys expose only the `_set` form. A key WebKit has retired raises an
-    /// uncatchable `NSUndefinedKeyException` from `setValue`, so probe for the
-    /// `_set` selector before calling it. The trailing colon matters: a setter
+    /// keys expose only the `_set` form. The trailing colon matters: a setter
     /// takes an argument, so its selector is `_setHiddenPageDOMTimerThrottlingEnabled:`,
     /// not `...Enabled`.
     static func setterName(for key: String) -> String {
         "_set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
+    }
+
+    /// Whether `preferences` can be written with `setValue(_:forKey:)` for `key`
+    /// without raising.
+    ///
+    /// KVC resolves `set<Key>:` first and falls back to `_set<Key>:`, so probe
+    /// both. A key WebKit has retired raises an uncatchable
+    /// `NSUndefinedKeyException` from `setValue`, so probe before calling it —
+    /// probe true guarantees the write won't throw, probe false means skip.
+    /// Shared with the tests so production and CI can't drift.
+    static func respondsToThrottlingSetter(for key: String, on preferences: WKPreferences) -> Bool {
+        let publicSetter = NSSelectorFromString("set" + key.prefix(1).uppercased() + key.dropFirst() + ":")
+        return preferences.responds(to: publicSetter)
+            || preferences.responds(to: NSSelectorFromString(setterName(for: key)))
     }
 
     /// Opts `configuration` out of macOS's hidden-page throttling.
@@ -55,7 +67,7 @@ enum SiteWebViewFactory {
     /// loudly, before a release.
     static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
         for key in hiddenPageThrottlingPreferenceKeys {
-            guard configuration.preferences.responds(to: NSSelectorFromString(setterName(for: key))) else {
+            guard respondsToThrottlingSetter(for: key, on: configuration.preferences) else {
                 // A user whose macOS retired a key would otherwise silently get the
                 // throttling back — this log line is how that becomes a diagnosis.
                 NSLog("Wrapybara: WebKit no longer knows \(key); hidden-page throttle opt-out incomplete")
