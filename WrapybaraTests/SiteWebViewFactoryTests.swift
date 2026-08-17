@@ -31,12 +31,14 @@ final class SiteWebViewFactoryTests: XCTestCase {
 
     /// Every key in the list must be one the running WebKit actually knows — a key
     /// WebKit stops recognising would crash `setValue` at runtime, so this guards
-    /// against the list silently going stale.
+    /// against the list silently going stale. `responds(to:)` rather than reading
+    /// the value back: reading an unknown key raises an uncatchable exception and
+    /// would crash the test runner instead of recording a readable failure.
     func testEveryConfiguredKeyExistsOnThisWebKit() {
         let configuration = WKWebViewConfiguration()
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {
-            XCTAssertNotNil(configuration.preferences.value(forKey: key),
-                            "\(key) is no longer a known WKPreferences key")
+            XCTAssertTrue(configuration.preferences.responds(to: NSSelectorFromString("_\(key)")),
+                          "\(key) is no longer a known WKPreferences key")
         }
     }
 }

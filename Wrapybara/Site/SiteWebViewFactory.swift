@@ -37,10 +37,18 @@ enum SiteWebViewFactory {
     /// The trade-off is battery: a hidden wrap keeps running its page's timers,
     /// which is precisely the point. The keys are undocumented but have been
     /// stable since macOS 10.12 and are the same ones Playwright, Bun and MacPin
-    /// set; `setValue` for a key WebKit no longer knows raises an exception,
-    /// which is the loud way to discover this list needs revisiting.
+    /// set. A key WebKit has since retired is skipped rather than crashing every
+    /// wrap at launch — a retired key is exactly what `testEveryConfiguredKeyExistsOnThisWebKit`
+    /// is there to catch in CI, loudly, before a release.
     static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
         for key in hiddenPageThrottlingPreferenceKeys {
+            // `setValue(_:forKey:)` on a key the class no longer knows raises
+            // `NSUndefinedKeyException`, which Swift cannot catch — probing the
+            // private `_<key>` getter first is a reliable existence check that
+            // cannot itself throw.
+            guard configuration.preferences.responds(to: NSSelectorFromString("_\(key)")) else {
+                continue
+            }
             configuration.preferences.setValue(false, forKey: key)
         }
     }

@@ -274,7 +274,9 @@ Not one feature — the absence of twenty small failures.
   process; a streaming chat then freezes the moment its window is covered or the
   display sleeps. A wrap is a single-tab app, not a background browser tab, so the
   runtime opts out of that throttling (`SiteWebViewFactory`). The cost is battery
-  when a wrap is hidden; that is the point.
+  when a wrap is hidden; that is the point. The opt-out rides undocumented
+  `WKPreferences` keys set via KVC — fine under Developer ID distribution, but
+  re-review before any Mac App Store submission.
 
 ---
 
