@@ -73,4 +73,45 @@ final class SiteErrorPageTests: XCTestCase {
     func testEscapingCoversAllFiveCharacters() {
         XCTAssertEqual(SiteErrorPage.htmlEscaped(#"&<>"'"#), "&amp;&lt;&gt;&quot;&#39;")
     }
+
+    // MARK: Failing URL
+
+    func testFailingURLPrefersTheErrorsOwnURL() {
+        // A → 301 → B failing at B must name (and retry) B, not A.
+        let finalURL = URL(string: "https://example.com/after-redirect")!
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost,
+                            userInfo: [NSURLErrorFailingURLErrorKey: finalURL])
+        let tracked = URL(string: "https://example.com/before-redirect")!
+        XCTAssertEqual(SiteErrorPage.failingURL(for: error, fallbacks: [tracked]), finalURL)
+    }
+
+    func testFailingURLReadsTheStringForm() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost,
+                            userInfo: [NSURLErrorFailingURLStringErrorKey: "https://example.com/final"])
+        XCTAssertEqual(SiteErrorPage.failingURL(for: error, fallbacks: [nil]),
+                       URL(string: "https://example.com/final"))
+    }
+
+    func testFallingBackInOrder() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        let first = URL(string: "https://a.example.com")!
+        let second = URL(string: "https://b.example.com")!
+        XCTAssertEqual(SiteErrorPage.failingURL(for: error, fallbacks: [nil, first, second]), first)
+    }
+
+    // MARK: Button contrast
+
+    func testLightTintsGetDarkButtonText() {
+        XCTAssertEqual(SiteErrorPage.readableTextColor(onHex: "#F5F5F0"), "#1d1d1f")
+        XCTAssertTrue(page(tint: "#F5F5F0").contains("color: #1d1d1f"))
+    }
+
+    func testDarkTintsGetWhiteButtonText() {
+        XCTAssertEqual(SiteErrorPage.readableTextColor(onHex: "#8B5A2B"), "#ffffff")
+        XCTAssertTrue(page(tint: "#8B5A2B").contains("color: #ffffff"))
+    }
+
+    func testAnUnreadableTintFallsBackToWhiteText() {
+        XCTAssertEqual(SiteErrorPage.readableTextColor(onHex: "bogus"), "#ffffff")
+    }
 }

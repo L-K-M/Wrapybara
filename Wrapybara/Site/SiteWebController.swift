@@ -313,7 +313,9 @@ extension SiteWebController: WKNavigationDelegate {
         // went wrong and offers Try Again — an ordinary link, so the retry flows
         // through NavigationPolicy like any in-app click.
         guard SiteErrorPage.shouldShow(for: error) else { return }
-        let failedURL = lastRequestedURL ?? webView.url ?? wrap.homeURL
+        let failedURL = SiteErrorPage.failingURL(
+            for: error,
+            fallbacks: [lastRequestedURL, webView.url, wrap.homeURL]) ?? wrap.homeURL
         webView.loadHTMLString(
             SiteErrorPage.html(wrapName: wrap.name, failedURL: failedURL,
                                error: error, tintHex: wrap.icon.tintHex),

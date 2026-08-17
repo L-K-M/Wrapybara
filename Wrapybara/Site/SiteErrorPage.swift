@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Builds the page a site app shows when a navigation fails.
 ///
@@ -26,6 +26,31 @@ enum SiteErrorPage {
         return nsError.code != NSURLErrorCancelled
     }
 
+    /// The URL a navigation failure actually happened at.
+    ///
+    /// Read off the error first: WebKit's failures carry the *post-redirect*
+    /// destination (`A → 301 → B` failing at B reports B), while the URL the
+    /// navigation was allowed for is the pre-redirect one. Naming — and retrying —
+    /// A would blame the wrong address and fail again on every Try Again.
+    static func failingURL(for error: Error, fallbacks: [URL?]) -> URL? {
+        let userInfo = (error as NSError).userInfo
+        if let url = userInfo[NSURLErrorFailingURLErrorKey] as? URL { return url }
+        if let string = userInfo[NSURLErrorFailingURLStringErrorKey] as? String,
+           let url = URL(string: string) { return url }
+        return fallbacks.lazy.compactMap { $0 }.first
+    }
+
+    /// White or near-black, whichever reads on `hex`. The wrap's tint can be any
+    /// colour, and a pale tint behind white text makes the one button that matters
+    /// illegible.
+    static func readableTextColor(onHex hex: String) -> String {
+        guard let color = NSColor(hex: hex)?.usingColorSpace(.sRGB) else { return "#ffffff" }
+        let luminance = 0.299 * color.redComponent
+            + 0.587 * color.greenComponent
+            + 0.114 * color.blueComponent
+        return luminance > 0.7 ? "#1d1d1f" : "#ffffff"
+    }
+
     /// The HTML for the error page.
     ///
     /// - Parameters:
@@ -40,6 +65,7 @@ enum SiteErrorPage {
         let accent = BoostCSSGenerator.sanitizedColor(tintHex)
             ?? BoostCSSGenerator.sanitizedColor(WrapIcon.defaultTintHex)
             ?? "#8b5a2b"
+        let accentText = readableTextColor(onHex: accent)
         let name = htmlEscaped(wrapName)
         let description = htmlEscaped(error.localizedDescription)
         let href = htmlEscaped(failedURL.absoluteString)
@@ -92,7 +118,7 @@ enum SiteErrorPage {
           }
           a.button {
             display: inline-block; padding: 7px 22px; border-radius: 7px;
-            background: \(accent); color: #ffffff; font-size: 14px; font-weight: 500;
+            background: \(accent); color: \(accentText); font-size: 14px; font-weight: 500;
             text-decoration: none;
           }
           a.button:active { filter: brightness(0.9); }
