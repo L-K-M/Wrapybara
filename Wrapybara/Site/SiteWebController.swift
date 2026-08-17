@@ -106,6 +106,7 @@ final class SiteWebController: NSObject {
     /// Replaces the configuration — a boost was edited in Wrapybara while this app was
     /// running — and re-applies it to the page currently on screen.
     func apply(_ newConfiguration: WrapConfiguration) {
+        let oldBehavior = configuration.wrap.behavior
         configuration = newConfiguration
         injector = BoostInjector(configuration: newConfiguration)
         BoostMatcher.clearCache()
@@ -114,8 +115,18 @@ final class SiteWebController: NSObject {
             installBoosts(for: url)
             reapplyStylesheet(for: url)
         }
-        webView.pageZoom = newConfiguration.wrap.behavior.pageZoom
-        webView.customUserAgent = newConfiguration.wrap.behavior.resolvedUserAgent
+        // Push view-level settings only when they actually changed. This runs on
+        // every live configuration edit — the "drag a slider in Wrapybara, watch
+        // the app restyle" path — and unconditionally resetting `pageZoom` would
+        // snap a user's ⌘+ zoom back to the default on every keystroke there.
+        let newBehavior = newConfiguration.wrap.behavior
+        if newBehavior.pageZoom != oldBehavior.pageZoom {
+            webView.pageZoom = newBehavior.pageZoom
+        }
+        let newAgent = newBehavior.resolvedUserAgent
+        if newAgent != oldBehavior.resolvedUserAgent {
+            webView.customUserAgent = newAgent
+        }
         delegate?.siteWebControllerDidChangeState(self)
     }
 
