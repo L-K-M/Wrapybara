@@ -176,7 +176,11 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
             rect = view.bounds
         } else if let content = window?.contentView {
             anchor = content
-            rect = NSRect(x: 0, y: content.bounds.maxY, width: 1, height: 1)
+            // A flipped content view puts its origin at the top, so the anchor has
+            // to follow the coordinate system — NSView's default isn't flipped, but
+            // nothing here gets to assume which one it inherited.
+            rect = NSRect(x: 0, y: content.isFlipped ? 0 : content.bounds.maxY,
+                          width: 1, height: 1)
         }
         guard let anchor else { return }
         picker.show(relativeTo: rect, of: anchor, preferredEdge: .minY)
