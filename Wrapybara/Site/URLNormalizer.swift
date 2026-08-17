@@ -83,8 +83,13 @@ enum URLNormalizer {
         if labels.count >= 3, multiPartSuffixes.contains(labels[labels.count - 2]) {
             index = labels.count - 3
         }
-        let label = (index >= 0 && index < labels.count) ? labels[index] : labels[0]
+        guard index >= 0, index < labels.count else { return labels[0].capitalized }
+        let label = labels[index]
         guard !label.isEmpty else { return "" }
+        // Only dotted-decimal hosts are detected; hex/octal IPv4 shorthand
+        // ("0x7f.0.0.1") falls through to label-based naming — recorded as a
+        // conscious choice rather than an accident.
+        //
         // Every label being ASCII digits is the real IP signal — TLDs are never
         // numeric, so a mixed host like "163.com" still gets its label ("163"),
         // while "192.168.1.1" is named honestly. (ASCII digits only: `isNumber`

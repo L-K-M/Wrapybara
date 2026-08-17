@@ -96,6 +96,9 @@ final class URLNormalizerTests: XCTestCase {
         XCTAssertEqual(suggested("https://mail.proton.me"), "Proton")
         XCTAssertEqual(suggested("https://app.example.co.uk"), "Example")
         XCTAssertEqual(suggested("https://localhost:3000"), "Localhost")
+        // Single-label hosts keep the .capitalized fallback: intranet names like
+        // build-server read better than "Build-server".
+        XCTAssertEqual(suggested("http://build-server:8080"), "Build-Server")
     }
 
     func testSuggestedNameForIPAddresses() {
