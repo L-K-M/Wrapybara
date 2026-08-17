@@ -27,8 +27,10 @@ final class FindBarController: NSObject {
 
     /// Whether ⌘G/⇧⌘G have something to repeat — used by menu validation, so a
     /// repeat search works without reopening the bar, the way Safari's does.
+    /// `lastQuery` is the single source of truth: search-as-you-type keeps it in
+    /// step with the field.
     var canRepeatFind: Bool {
-        !lastQuery.isEmpty || !searchField.stringValue.isEmpty
+        !lastQuery.isEmpty
     }
 
     /// Collapses the bar to zero height while hidden.
@@ -124,9 +126,10 @@ final class FindBarController: NSObject {
             // inventing an "n of m".
             self.statusLabel.stringValue = result.matchFound ? "" : "Not found"
             self.statusLabel.textColor = result.matchFound ? .secondaryLabelColor : .systemRed
-            // Beep only for an explicit repeat (⌘G). Beeping per keystroke while the
-            // user is still typing a word — whose early prefixes often match nothing —
-            // is the kind of thing that gets a find bar muted forever.
+            // Beep only on an explicit repeat action (⌘G/⇧⌘G, the chevron
+            // buttons) — everything typed or returned through the field arrives
+            // with `fromUserTyping` true, and beeping per keystroke while a word's
+            // early prefixes match nothing is what gets a find bar muted forever.
             if !result.matchFound, !fromUserTyping { NSSound.beep() }
         }
     }
