@@ -234,19 +234,19 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         var bestCount: Int?
-        var hasMarker = false
+        var markerBadge: String?
         for controller in windowControllers {
             guard let title = controller.window?.title else { continue }
             if let count = BadgeFromTitle.count(for: title) {
                 bestCount = max(bestCount ?? 0, count)
-            } else if BadgeFromTitle.badge(for: title) != nil {
-                hasMarker = true
+            } else if let badge = BadgeFromTitle.badge(for: title) {
+                markerBadge = badge
             }
         }
         if let bestCount {
             NSApp.dockTile.badgeLabel = "\(bestCount)"
-        } else if hasMarker {
-            NSApp.dockTile.badgeLabel = "\u{2022}"
+        } else if let markerBadge {
+            NSApp.dockTile.badgeLabel = markerBadge
         } else {
             NSApp.dockTile.badgeLabel = nil
         }
