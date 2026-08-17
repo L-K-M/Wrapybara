@@ -3,6 +3,8 @@
 Turn a website into a **real Mac app** — with its own icon, menu bar, tabs and login
 session — and then customise the site inside it with **Boosts**.
 
+![Screenshot showing Wrapybara and a Claude app](screenshot.png)
+
 **Latest release:** v<!-- version -->1.0.0<!-- /version --> · [Download](https://github.com/L-K-M/Wrapybara/releases/latest)
 
 > [!IMPORTANT]
