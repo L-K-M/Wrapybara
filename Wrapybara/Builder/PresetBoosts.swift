@@ -48,21 +48,24 @@ enum PresetBoosts {
         name: "Kill Sticky Headers",
         match: .everywhere,
         css: """
-        /* Sticky and fixed chrome follows you down the page. Re-pinning it as
-           absolute (rather than hiding it) scrolls it away with the page while
-           leaving the header itself at the top where it belongs. Bare `nav`
-           excludes footer/sidebar navs — breadcrumbs and pagination aren't
-           sticky headers, and un-positioning them visibly breaks layouts. */
+        /* Sticky and fixed chrome follows you down the page. Un-pinning it as
+           static (rather than hiding it) scrolls it away with the page while
+           leaving the header itself at the top where it belongs — and static is
+           a no-op for the plain headers these selectors also match, so a
+           never-positioned header keeps its layout. Bare `nav` excludes
+           footer/sidebar navs: breadcrumbs and pagination aren't sticky
+           headers, and un-positioning *positioned* ones visibly breaks
+           layouts. */
         header, [role="banner"],
         nav:not(footer nav, aside nav),
         [class*="sticky"], [class*="Sticky"],
         [class*="fixed-header"], [class*="FixedHeader"] {
-          position: absolute !important;
+          position: static !important;
         }
         """,
         notes: "Heuristic: it matches common header containers and class names, so a "
-            + "site with unusual markup may keep its sticky header — or lose the "
-            + "positioning of something that isn't one. Adjust the selector list in "
+            + "site with unusual markup may keep its sticky header — or have a "
+            + "positioned non-header un-positioned. Adjust the selector list in "
             + "the Code pane for the site you're wrapping.")
 
     /// Every proportional font swapped for the system monospace. Icon fonts are

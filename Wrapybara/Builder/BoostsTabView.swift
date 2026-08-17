@@ -86,9 +86,7 @@ struct BoostsTabView: View {
                 Menu {
                     ForEach(PresetBoosts.all) { preset in
                         Button(preset.name) { model.addPreset(preset) }
-                            .disabled(model.store.library.sharedBoosts.contains {
-                                $0.name == preset.name && $0.notes == preset.notes
-                            })
+                            .disabled(model.isPresetOnShelf(preset))
                     }
                 } label: {
                     Image(systemName: "sparkles")

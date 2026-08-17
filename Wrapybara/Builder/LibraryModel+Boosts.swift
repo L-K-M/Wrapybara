@@ -40,16 +40,23 @@ extension LibraryModel {
 
     // MARK: Presets
 
+    /// True when a boost with the same name *and* functional payload (theme, CSS)
+    /// is already on the shared shelf — the one home of the "preset already
+    /// added" rule. Notes are deliberately excluded: they're the most likely
+    /// thing a user edits after adding, and a trimmed note shouldn't re-enable
+    /// a preset that's functionally already there.
+    func isPresetOnShelf(_ boost: Boost) -> Bool {
+        store.library.sharedBoosts.contains {
+            $0.name == boost.name && $0.css == boost.css && $0.theme == boost.theme
+        }
+    }
+
     /// Adds a ready-made boost to the shared shelf, selected and switched on for no
     /// wrap yet — exactly like an import, minus the file.
     func addPreset(_ boost: Boost) {
-        // The same preset twice is a no-op. Name *and* notes, so a user's own
-        // unrelated "Dark" never blocks the preset, and a re-added preset the user
-        // edited is still recognisably the preset. The model owns this rule rather
-        // than the menu's `disabled`, so any caller gets it.
-        guard !store.library.sharedBoosts.contains(where: {
-            $0.name == boost.name && $0.notes == boost.notes
-        }) else { return }
+        // The same preset twice is a no-op. The model owns this rule rather than
+        // the menu's `disabled`, so any caller gets it.
+        guard !isPresetOnShelf(boost) else { return }
         var copy = boost
         // A fresh id, so re-adding a preset after renaming (or deleting) the first
         // copy can never collide with an id that already lives on the shelf.
