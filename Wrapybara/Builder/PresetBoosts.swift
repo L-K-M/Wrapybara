@@ -88,11 +88,14 @@ enum PresetBoosts {
         /* The common consent SDK containers. Deliberately narrow: hiding a banner
            never *answers* it, and a selector broad enough to catch every banner is
            broad enough to hide the wrong thing. A banner that uses none of these
-           stays put rather than risking a false hide. */
+           stays put rather than risking a false hide. "Re-open cookie settings"
+           affordances (like #cookie-law-info-again) are deliberately NOT hidden —
+           removing the way back into a consent choice goes further than
+           de-cluttering. */
         #onetrust-consent-sdk, #onetrust-banner-sdk,
         #CybotCookiebotDialog, #CybotCookiebotDialogBodyUnderlay,
         .cc-window, .cc-banner,
-        #cookie-law-info-bar, #cookie-law-info-again,
+        #cookie-law-info-bar,
         #hs-eu-cookie-confirmation, .evidon-banner,
         [aria-label="cookieconsent"] {
           display: none !important;

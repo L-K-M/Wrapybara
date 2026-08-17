@@ -85,8 +85,18 @@ struct BoostsTabView: View {
                 .disabled(model.selectedBoost == nil)
                 Menu {
                     ForEach(PresetBoosts.all) { preset in
-                        Button(preset.name) { model.addPreset(preset) }
-                            .disabled(model.isPresetOnShelf(preset))
+                        Button {
+                            model.addPreset(preset)
+                        } label: {
+                            // A checkmark says "already on the shelf"; a bare
+                            // disabled item just looks broken.
+                            if model.isPresetOnShelf(preset) {
+                                Label(preset.name, systemImage: "checkmark")
+                            } else {
+                                Text(preset.name)
+                            }
+                        }
+                        .disabled(model.isPresetOnShelf(preset))
                     }
                 } label: {
                     Image(systemName: "sparkles")
