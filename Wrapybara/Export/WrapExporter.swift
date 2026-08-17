@@ -28,6 +28,16 @@ final class WrapExporter {
     private let preferences: Preferences
     private let writer: AppBundleWriter
 
+    /// Composed artwork, cached per wrap.
+    ///
+    /// `resolvedIcon(for:)` is called for every row of the library sidebar on every
+    /// SwiftUI render — which is every keystroke in any editor field. Without a cache
+    /// that's a disk read and a PNG decode per row per render. The key carries the
+    /// wrap's `updatedAt`, so any edit that changes the artwork (a fetch, a picked
+    /// file, a rename that changes the monogram) lands under a new key. `NSCache`
+    /// evicts under memory pressure with no bookkeeping of our own.
+    private let iconCache = NSCache<NSString, NSImage>()
+
     init(store: WrapStore,
          preferences: Preferences = .shared,
          writer: AppBundleWriter = AppBundleWriter()) {
@@ -122,8 +132,11 @@ final class WrapExporter {
     /// Never returns `nil` — an app with no icon at all shows the generic blank page
     /// in the Dock, which is a worse outcome than initials on a plate.
     func resolvedIcon(for wrap: Wrap) -> NSImage {
+        let key = "\(wrap.id.uuidString)|\(wrap.updatedAt.timeIntervalSince1970)" as NSString
+        if let cached = iconCache.object(forKey: key) { return cached }
         let url = AppSupport.iconURL(forWrapID: wrap.id)
         if let data = try? Data(contentsOf: url), let image = NSImage(data: data), image.isValid {
+            iconCache.setObject(image, forKey: key)
             return image
         }
         return IconComposer.monogram(WrapIcon.initials(for: wrap.name),
