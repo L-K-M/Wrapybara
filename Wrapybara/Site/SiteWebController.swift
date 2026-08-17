@@ -283,6 +283,17 @@ extension SiteWebController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // A session restore loads its page without `decidePolicyFor` ever seeing the
+        // restored URL — `restore(interactionState:)` installs the boosts for the home
+        // page because that is all it knows at that point. If the page actually
+        // restored is somewhere else, its URL-scoped boosts are still the wrong ones
+        // on screen; install the right set now and restyle in place. (The
+        // documentStart scripts for that first paint are already past; late is far
+        // better than wrong until the next navigation.)
+        if let url = webView.url, boostedURL != url {
+            installBoosts(for: url)
+            reapplyStylesheet(for: url)
+        }
         delegate?.siteWebControllerDidChangeState(self)
     }
 
