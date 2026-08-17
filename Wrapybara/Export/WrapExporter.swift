@@ -35,8 +35,15 @@ final class WrapExporter {
     /// that's a disk read and a PNG decode per row per render. The key carries the
     /// wrap's `updatedAt`, so any edit that changes the artwork (a fetch, a picked
     /// file, a rename that changes the monogram) lands under a new key. `NSCache`
-    /// evicts under memory pressure with no bookkeeping of our own.
-    private let iconCache = NSCache<NSString, NSImage>()
+    /// evicts under memory pressure with no bookkeeping of our own; the count limit
+    /// bounds the growth those `updatedAt`-churned keys could otherwise achieve in a
+    /// very long session — a wrap's icons are a few hundred kilobytes each, so 256
+    /// entries is generous and still trivial memory.
+    private let iconCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 256
+        return cache
+    }()
 
     init(store: WrapStore,
          preferences: Preferences = .shared,
