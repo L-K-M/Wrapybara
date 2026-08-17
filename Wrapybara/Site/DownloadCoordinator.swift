@@ -1,5 +1,8 @@
 import AppKit
-import WebKit
+// WebKit carries no `Sendable` annotations, so importing it normally warns on every
+// delegate callback that crosses an isolation boundary. `@preconcurrency` is the
+// documented suppression for a framework that predates strict concurrency.
+@preconcurrency import WebKit
 
 /// Handles downloads the way a Mac app does: into `~/Downloads`, with a bouncing
 /// Dock progress and a Finder reveal when it's done.

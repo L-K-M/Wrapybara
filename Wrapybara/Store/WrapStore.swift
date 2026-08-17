@@ -95,12 +95,10 @@ final class WrapStore: ObservableObject {
         scheduleSave()
     }
 
-    func move(wrapIDs ids: [UUID], to offset: Int) {
-        let indices = IndexSet(library.wraps.indices.filter { ids.contains(library.wraps[$0].id) })
-        guard !indices.isEmpty else { return }
-        library.wraps.move(fromOffsets: indices, toOffset: offset)
-        scheduleSave()
-    }
+    // Note: there is no reordering method here. `move(fromOffsets:toOffset:)` comes from
+    // SwiftUI rather than Foundation, and this file has no other reason to import it —
+    // so when the library list gains drag-to-reorder, the reorder belongs in
+    // `LibraryModel` (which already imports SwiftUI) writing back through `update`.
 
     // MARK: Shared boosts
 

@@ -55,15 +55,15 @@ enum BuilderMenuBuilder {
     private static func editMenu() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "Edit")
-        add(menu, "Undo", Selector(("undo:")), "z")
-        let redo = add(menu, "Redo", Selector(("redo:")), "z")
+        add(menu, "Undo", NSSelectorFromString("undo:"), "z")
+        let redo = add(menu, "Redo", NSSelectorFromString("redo:"), "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(.separator())
-        add(menu, "Cut", Selector(("cut:")), "x")
-        add(menu, "Copy", Selector(("copy:")), "c")
-        add(menu, "Paste", Selector(("paste:")), "v")
-        add(menu, "Delete", Selector(("delete:")))
-        add(menu, "Select All", Selector(("selectAll:")), "a")
+        add(menu, "Cut", NSSelectorFromString("cut:"), "x")
+        add(menu, "Copy", NSSelectorFromString("copy:"), "c")
+        add(menu, "Paste", NSSelectorFromString("paste:"), "v")
+        add(menu, "Delete", NSSelectorFromString("delete:"))
+        add(menu, "Select All", NSSelectorFromString("selectAll:"), "a")
         item.submenu = menu
         return item
     }

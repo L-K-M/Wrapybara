@@ -419,16 +419,17 @@ enum BoostScripts {
 
     /// A JavaScript string literal for `value`, safe to paste into a script.
     ///
-    /// JSON is a subset of JavaScript expression syntax for strings, so
-    /// `JSONSerialization` does the escaping — including `</script>`-unsafe sequences,
-    /// which don't matter here (nothing is injected into markup) but keep the output
-    /// safe if that ever changes.
+    /// `JSONSerialization` does the quote and backslash escaping. It is not quite
+    /// sufficient on its own: JSON permits U+2028 and U+2029 raw inside a string, while
+    /// JavaScript only started to with ES2019's JSON-superset proposal. WebKit is well
+    /// past that, but escaping them costs nothing and keeps the emitted script valid
+    /// under any engine — including a stricter non-WebKit backend later.
     static func jsStringLiteral(_ value: String) -> String {
         // `.fragmentsAllowed` lets a bare string be encoded without wrapping it in an
         // array or object first.
         if let data = try? JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed]),
            let literal = String(data: data, encoding: .utf8) {
-            return literal
+            return escapingLineSeparators(literal)
         }
         // Encoding a `String` can't realistically fail, but a stylesheet that silently
         // became `""` would be a mystifying bug — so fall back to hand-escaping the
@@ -438,8 +439,14 @@ enum BoostScripts {
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
+        return "\"\(escaped)\""
+    }
+
+    /// Replaces raw U+2028/U+2029 with their `\uXXXX` escapes. See `jsStringLiteral`.
+    private static func escapingLineSeparators(_ literal: String) -> String {
+        guard literal.contains("\u{2028}") || literal.contains("\u{2029}") else { return literal }
+        return literal
             .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
             .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
-        return "\"\(escaped)\""
     }
 }

@@ -87,26 +87,29 @@ enum SiteMenuBuilder {
 
     /// The standard Edit menu.
     ///
-    /// Selectors are built with `Selector(("…"))` because the responder that implements
-    /// them is WebKit's, not a type this target can see. Without this menu a web view
-    /// gets no ⌘C at all — a text field in a wrapper that can't copy is the single most
-    /// common bug in apps like these.
+    /// Selectors are built with `NSSelectorFromString` because the responder that
+    /// implements them is WebKit's, not a type this target can see — so `#selector`
+    /// genuinely isn't available, and this is the API for "known by name only".
+    ///
+    /// Without this menu a web view gets no ⌘C at all: AppKit routes those through menu
+    /// key equivalents, not through the view. A text field in a wrapper that can't copy
+    /// is the single most common bug in apps like these.
     private static func editMenu() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "Edit")
 
-        add(menu, "Undo", Selector(("undo:")), "z")
-        let redo = add(menu, "Redo", Selector(("redo:")), "z")
+        add(menu, "Undo", NSSelectorFromString("undo:"), "z")
+        let redo = add(menu, "Redo", NSSelectorFromString("redo:"), "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(.separator())
-        add(menu, "Cut", Selector(("cut:")), "x")
-        add(menu, "Copy", Selector(("copy:")), "c")
-        add(menu, "Paste", Selector(("paste:")), "v")
+        add(menu, "Cut", NSSelectorFromString("cut:"), "x")
+        add(menu, "Copy", NSSelectorFromString("copy:"), "c")
+        add(menu, "Paste", NSSelectorFromString("paste:"), "v")
         let pasteMatch = add(menu, "Paste and Match Style",
-                             Selector(("pasteAsPlainText:")), "v")
+                             NSSelectorFromString("pasteAsPlainText:"), "v")
         pasteMatch.keyEquivalentModifierMask = [.command, .option, .shift]
-        add(menu, "Delete", Selector(("delete:")))
-        add(menu, "Select All", Selector(("selectAll:")), "a")
+        add(menu, "Delete", NSSelectorFromString("delete:"))
+        add(menu, "Select All", NSSelectorFromString("selectAll:"), "a")
         menu.addItem(.separator())
 
         let find = NSMenuItem(title: "Find", action: nil, keyEquivalent: "")
@@ -123,8 +126,8 @@ enum SiteMenuBuilder {
         // exists, and web forms are text fields like any other.
         let spelling = NSMenuItem(title: "Spelling and Grammar", action: nil, keyEquivalent: "")
         let spellingMenu = NSMenu(title: "Spelling and Grammar")
-        add(spellingMenu, "Show Spelling and Grammar", Selector(("showGuessPanel:")), ":")
-        add(spellingMenu, "Check Document Now", Selector(("checkSpelling:")), ";")
+        add(spellingMenu, "Show Spelling and Grammar", NSSelectorFromString("showGuessPanel:"), ":")
+        add(spellingMenu, "Check Document Now", NSSelectorFromString("checkSpelling:"), ";")
         spelling.submenu = spellingMenu
         menu.addItem(spelling)
 
