@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
-"""Regenerates Wrapybara's AppIcon.appiconset from code.
-
-The icon is drawn analytically rather than exported from a design tool, so it is
-reproducible and reviewable in a diff: run this script and the ten PNG slots in
-`Wrapybara/Resources/Assets.xcassets/AppIcon.appiconset/` are rewritten.
+"""Builds Wrapybara's app icon from the committed source artwork.
 
     python3 Tools/make-appicon.py
 
-Depends only on the Python standard library (`zlib` + `struct` write the PNGs).
-Every shape is rendered from its signed distance field, so edges are
-antialiased at any size without supersampling, and each slot is drawn at its
-native pixel size instead of downsampled from one master — small sizes drop
-detail (traffic-light dots, eyes, nostrils) on purpose so 16pt stays legible.
+Reads `media-sources/icon.png` and writes:
 
-The artwork: a warm sand squircle plate, a white browser window "wrapping" a
-capybara whose muzzle breaks out through the window's bottom edge.
+  * the ten slots in `Wrapybara/Resources/Assets.xcassets/AppIcon.appiconset/`
+  * `docs/icon.png`, the small inline icon the README uses
+
+Depends only on the Python standard library — it decodes, resamples and re-encodes
+PNG itself (`zlib` does the compression), so regenerating the icon needs no image
+tooling installed.
+
+## What it does to the artwork, and why
+
+The source is a full-bleed square. Dropped straight into a bundle it would sit in
+the Dock as a hard square among rounded plates, at the wrong visual weight — the
+exact tell this project exists to avoid. So the artwork is scaled to **824 of 1024**
+(Apple's macOS app-icon grid) and its corners are rounded to the system radius,
+which makes the source's own background field serve as the plate margin.
+
+That inset is deliberate even though it makes the artwork smaller than filling the
+canvas would: the grid is what makes an icon look the same *size* as its neighbours
+in the Dock. An icon that ignores it reads as slightly too big, which is its own
+kind of wrong.
 """
 
 from __future__ import annotations
@@ -22,239 +31,23 @@ from __future__ import annotations
 import math
 import os
 import struct
+import sys
 import zlib
 
 # ---------------------------------------------------------------------------
-# Canvas
+# Geometry (in 1024-unit space)
 # ---------------------------------------------------------------------------
 
+CANVAS = 1024
+PLATE = 824      # Apple's macOS app-icon grid
+RADIUS = 185     # close enough to the system squircle that it doesn't read as "a
+                 # rounded rectangle someone drew"
 
-class Canvas:
-    """A straight-alpha RGBA float canvas with SDF-coverage compositing."""
-
-    def __init__(self, size: int):
-        self.size = size
-        # Row-major list of [r, g, b, a] in 0..1.
-        self.px = [[0.0, 0.0, 0.0, 0.0] for _ in range(size * size)]
-
-    # -- compositing ------------------------------------------------------
-
-    def _blend(self, index: int, color: tuple[float, float, float], coverage: float) -> None:
-        if coverage <= 0.0:
-            return
-        dst = self.px[index]
-        sa = coverage
-        da = dst[3]
-        out_a = sa + da * (1.0 - sa)
-        if out_a <= 0.0:
-            dst[0] = dst[1] = dst[2] = dst[3] = 0.0
-            return
-        for c in range(3):
-            dst[c] = (color[c] * sa + dst[c] * da * (1.0 - sa)) / out_a
-        dst[3] = out_a
-
-    def fill(self, sdf, color, bounds, alpha: float = 1.0, gradient=None) -> None:
-        """Fills where `sdf(x, y) < 0`, antialiasing over the boundary pixel.
-
-        `bounds` is an (x0, y0, x1, y1) pixel box to limit the scan. `gradient`,
-        when given, is called with the normalised y (0 at top, 1 at bottom) and
-        returns the colour for that row — used for the plate.
-        """
-        x0, y0, x1, y1 = bounds
-        x0 = max(0, int(math.floor(x0)))
-        y0 = max(0, int(math.floor(y0)))
-        x1 = min(self.size, int(math.ceil(x1)))
-        y1 = min(self.size, int(math.ceil(y1)))
-        for y in range(y0, y1):
-            row = y * self.size
-            row_color = gradient(y / max(1, self.size - 1)) if gradient else color
-            py = y + 0.5
-            for x in range(x0, x1):
-                d = sdf(x + 0.5, py)
-                if d >= 0.5:
-                    continue
-                coverage = 1.0 if d <= -0.5 else 0.5 - d
-                self._blend(row + x, row_color, coverage * alpha)
-
-    # -- output -----------------------------------------------------------
-
-    def png(self) -> bytes:
-        # PNG stores straight (non-premultiplied) alpha, which is exactly how the
-        # canvas keeps it, so the channels go out as they are.
-        raw = bytearray()
-        for y in range(self.size):
-            raw.append(0)  # filter type 0 (None)
-            row = y * self.size
-            for x in range(self.size):
-                r, g, b, a = self.px[row + x]
-                raw += bytes((_byte(r), _byte(g), _byte(b), _byte(a)))
-        return _png_bytes(self.size, self.size, bytes(raw))
-
-
-def _byte(v: float) -> int:
-    return max(0, min(255, int(round(v * 255.0))))
-
-
-def _chunk(tag: bytes, data: bytes) -> bytes:
-    return (
-        struct.pack(">I", len(data))
-        + tag
-        + data
-        + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-    )
-
-
-def _png_bytes(width: int, height: int, raw: bytes) -> bytes:
-    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)  # 8-bit RGBA
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + _chunk(b"IHDR", header)
-        + _chunk(b"IDAT", zlib.compress(raw, 9))
-        + _chunk(b"IEND", b"")
-    )
-
-
-# ---------------------------------------------------------------------------
-# Signed distance fields
-# ---------------------------------------------------------------------------
-
-
-def rounded_rect(cx: float, cy: float, w: float, h: float, r: float):
-    hw, hh = w / 2.0, h / 2.0
-    r = min(r, hw, hh)
-
-    def sdf(x: float, y: float) -> float:
-        qx = abs(x - cx) - (hw - r)
-        qy = abs(y - cy) - (hh - r)
-        outside = math.hypot(max(qx, 0.0), max(qy, 0.0))
-        return outside + min(max(qx, qy), 0.0) - r
-
-    return sdf, (cx - hw - 1, cy - hh - 1, cx + hw + 1, cy + hh + 1)
-
-
-def ellipse(cx: float, cy: float, rx: float, ry: float):
-    def sdf(x: float, y: float) -> float:
-        dx = (x - cx) / rx
-        dy = (y - cy) / ry
-        return (math.hypot(dx, dy) - 1.0) * min(rx, ry)
-
-    return sdf, (cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1)
-
-
-def circle(cx: float, cy: float, r: float):
-    return ellipse(cx, cy, r, r)
-
-
-def intersect(a, b):
-    """SDF of the intersection of two shapes (max of the two distances)."""
-    sdf_a, bounds_a = a
-    sdf_b, bounds_b = b
-    bounds = (
-        max(bounds_a[0], bounds_b[0]),
-        max(bounds_a[1], bounds_b[1]),
-        min(bounds_a[2], bounds_b[2]),
-        min(bounds_a[3], bounds_b[3]),
-    )
-    return (lambda x, y: max(sdf_a(x, y), sdf_b(x, y))), bounds
-
-
-def rgb(hex_code: str) -> tuple[float, float, float]:
-    hex_code = hex_code.lstrip("#")
-    return tuple(int(hex_code[i : i + 2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore[return-value]
-
-
-# ---------------------------------------------------------------------------
-# The artwork
-# ---------------------------------------------------------------------------
-
-PLATE_TOP = rgb("F7DCAC")
-PLATE_BOTTOM = rgb("DFA167")
-WINDOW = rgb("FFFFFF")
-TITLEBAR = rgb("ECE7E1")
-FUR = rgb("8B5A2B")
-FUR_LIGHT = rgb("A87243")
-FUR_DARK = rgb("6B4522")
-INK = rgb("3A2413")
-TRAFFIC = (rgb("FF5F57"), rgb("FEBC2E"), rgb("28C840"))
-
-
-def draw(size: int) -> Canvas:
-    """Draws the icon at `size` pixels. Geometry is expressed in 1024 units."""
-    canvas = Canvas(size)
-    s = size / 1024.0
-
-    def u(v: float) -> float:
-        return v * s
-
-    # Detail thresholds: below these sizes the small marks turn to mush and
-    # muddy the silhouette, so they're dropped instead of drawn.
-    show_traffic_lights = size >= 128
-    show_face = size >= 64
-    show_titlebar = size >= 48
-
-    # 1. The plate — a squircle-ish rounded rect with a warm vertical gradient.
-    plate = rounded_rect(u(512), u(512), u(824), u(824), u(188))
-    plate_top_y = u(100) / max(1.0, size - 1)
-    plate_bottom_y = u(924) / max(1.0, size - 1)
-
-    def plate_gradient(t: float) -> tuple[float, float, float]:
-        span = max(1e-6, plate_bottom_y - plate_top_y)
-        k = min(1.0, max(0.0, (t - plate_top_y) / span))
-        return tuple(  # type: ignore[return-value]
-            PLATE_TOP[c] + (PLATE_BOTTOM[c] - PLATE_TOP[c]) * k for c in range(3)
-        )
-
-    canvas.fill(plate[0], None, plate[1], gradient=plate_gradient)
-
-    # 2. The window that does the wrapping.
-    win_cx, win_cy = u(512), u(486)
-    win_w, win_h = u(608), u(556)
-    win_r = u(76)
-    window = rounded_rect(win_cx, win_cy, win_w, win_h, win_r)
-    canvas.fill(window[0], WINDOW, window[1])
-
-    win_top = win_cy - win_h / 2.0
-    bar_h = u(104)
-    if show_titlebar:
-        # Clip a plain bar to the window so the top corners stay rounded.
-        bar = rounded_rect(win_cx, win_top + bar_h / 2.0, win_w, bar_h, 0.0)
-        clipped = intersect(bar, window)
-        canvas.fill(clipped[0], TITLEBAR, clipped[1])
-
-    if show_traffic_lights:
-        for i, color in enumerate(TRAFFIC):
-            dot = circle(u(272 + i * 58), win_top + bar_h / 2.0, u(17))
-            canvas.fill(dot[0], color, dot[1])
-
-    # 3. The capybara, drawn over the window so the muzzle breaks the frame.
-    head_cx, head_cy = u(512), u(596)
-    for ear_x in (u(372), u(652)):
-        ear = circle(ear_x, u(438), u(54))
-        canvas.fill(ear[0], FUR_DARK, ear[1])
-
-    head = rounded_rect(head_cx, head_cy, u(384), u(346), u(128))
-    canvas.fill(head[0], FUR, head[1])
-
-    muzzle = rounded_rect(head_cx, u(716), u(268), u(190), u(86))
-    canvas.fill(muzzle[0], FUR_LIGHT, muzzle[1])
-
-    if show_face:
-        for eye_x in (u(430), u(594)):
-            eye = circle(eye_x, u(542), u(27))
-            canvas.fill(eye[0], INK, eye[1])
-        for nose_x in (u(468), u(556)):
-            nose = ellipse(nose_x, u(690), u(17), u(23))
-            canvas.fill(nose[0], INK, nose[1])
-        # A short mouth line under the nostrils.
-        mouth = rounded_rect(head_cx, u(756), u(96), u(16), u(8))
-        canvas.fill(mouth[0], FUR_DARK, mouth[1], alpha=0.75)
-
-    return canvas
-
-
-# ---------------------------------------------------------------------------
-# Slots
-# ---------------------------------------------------------------------------
+SOURCE = os.path.join("media-sources", "icon.png")
+APPICONSET = os.path.join(
+    "Wrapybara", "Resources", "Assets.xcassets", "AppIcon.appiconset")
+README_ICON = os.path.join("docs", "icon.png")
+README_ICON_PIXELS = 256   # the README displays it at 48pt; 256 covers Retina
 
 SLOTS = [
     (16, "1x", 16),
@@ -268,6 +61,246 @@ SLOTS = [
     (512, "1x", 512),
     (512, "2x", 1024),
 ]
+
+# ---------------------------------------------------------------------------
+# PNG decoding
+# ---------------------------------------------------------------------------
+
+
+class Image:
+    """An 8-bit RGBA raster, one `bytearray` of `w * h * 4`."""
+
+    __slots__ = ("width", "height", "px")
+
+    def __init__(self, width: int, height: int, px: bytearray | None = None):
+        self.width = width
+        self.height = height
+        self.px = px if px is not None else bytearray(width * height * 4)
+
+
+def decode_png(data: bytes) -> Image:
+    """Decodes a non-interlaced, 8-bit PNG in RGB, RGBA, grey or grey+alpha.
+
+    Deliberately narrow: it has to read one committed file, and refusing anything
+    else loudly is better than mis-decoding it quietly. Palette and 16-bit sources
+    are rejected with a message that says what to do about it.
+    """
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise SystemExit(f"{SOURCE} is not a PNG")
+
+    width = height = 0
+    bit_depth = color_type = interlace = 0
+    idat = bytearray()
+    pos = 8
+    while pos + 8 <= len(data):
+        length, tag = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if tag == b"IHDR":
+            width, height, bit_depth, color_type, _, _, interlace = struct.unpack(
+                ">IIBBBBB", body)
+        elif tag == b"IDAT":
+            idat += body
+        elif tag == b"IEND":
+            break
+        pos += 12 + length
+
+    if bit_depth != 8:
+        raise SystemExit(f"{SOURCE}: expected 8 bits per channel, found {bit_depth}. "
+                         "Re-export it as 8-bit RGB or RGBA.")
+    if interlace:
+        raise SystemExit(f"{SOURCE}: interlaced PNGs aren't supported. "
+                         "Re-export without interlacing.")
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color_type)
+    if channels is None:
+        raise SystemExit(f"{SOURCE}: colour type {color_type} isn't supported "
+                         "(palette/indexed). Re-export as RGB or RGBA.")
+
+    raw = zlib.decompress(bytes(idat))
+    stride = width * channels
+    expected = (stride + 1) * height
+    if len(raw) < expected:
+        raise SystemExit(f"{SOURCE}: truncated image data")
+
+    # Reverse the per-scanline filters. This is the whole of PNG decoding for a
+    # non-interlaced 8-bit image.
+    out = Image(width, height)
+    previous = bytearray(stride)
+    offset = 0
+    for y in range(height):
+        filter_type = raw[offset]
+        offset += 1
+        line = bytearray(raw[offset:offset + stride])
+        offset += stride
+
+        if filter_type == 1:      # Sub
+            for i in range(channels, stride):
+                line[i] = (line[i] + line[i - channels]) & 0xFF
+        elif filter_type == 2:    # Up
+            for i in range(stride):
+                line[i] = (line[i] + previous[i]) & 0xFF
+        elif filter_type == 3:    # Average
+            for i in range(stride):
+                left = line[i - channels] if i >= channels else 0
+                line[i] = (line[i] + ((left + previous[i]) >> 1)) & 0xFF
+        elif filter_type == 4:    # Paeth
+            for i in range(stride):
+                left = line[i - channels] if i >= channels else 0
+                up = previous[i]
+                up_left = previous[i - channels] if i >= channels else 0
+                p = left + up - up_left
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - up_left)
+                nearest = left if (pa <= pb and pa <= pc) else (up if pb <= pc else up_left)
+                line[i] = (line[i] + nearest) & 0xFF
+        elif filter_type != 0:
+            raise SystemExit(f"{SOURCE}: unknown scanline filter {filter_type}")
+
+        # Widen whatever came in to RGBA.
+        row = y * width * 4
+        if channels == 4:
+            out.px[row:row + width * 4] = line
+        elif channels == 3:
+            for x in range(width):
+                s, d = x * 3, row + x * 4
+                out.px[d:d + 4] = bytes((line[s], line[s + 1], line[s + 2], 255))
+        elif channels == 2:
+            for x in range(width):
+                s, d = x * 2, row + x * 4
+                grey = line[s]
+                out.px[d:d + 4] = bytes((grey, grey, grey, line[s + 1]))
+        else:
+            for x in range(width):
+                grey, d = line[x], row + x * 4
+                out.px[d:d + 4] = bytes((grey, grey, grey, 255))
+
+        previous = line
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Resampling
+# ---------------------------------------------------------------------------
+
+
+def resize(source: Image, size: int) -> Image:
+    """Area-averages `source` down to `size`×`size`.
+
+    A box filter rather than nearest-neighbour: these are large downscales (1254 to
+    as little as 13 pixels), and point-sampling a furry photographic subject at
+    those ratios produces exactly the crunchy aliasing that makes a small icon look
+    cheap. Alpha is averaged alongside the colour channels, weighted so transparent
+    pixels don't drag the colour toward black.
+    """
+    out = Image(size, size)
+    sw, sh = source.width, source.height
+    for y in range(size):
+        y0 = y * sh // size
+        y1 = max(y0 + 1, (y + 1) * sh // size)
+        for x in range(size):
+            x0 = x * sw // size
+            x1 = max(x0 + 1, (x + 1) * sw // size)
+
+            r = g = b = a = 0
+            weight = 0
+            count = 0
+            for sy in range(y0, y1):
+                base = (sy * sw) * 4
+                for sx in range(x0, x1):
+                    i = base + sx * 4
+                    alpha = source.px[i + 3]
+                    r += source.px[i] * alpha
+                    g += source.px[i + 1] * alpha
+                    b += source.px[i + 2] * alpha
+                    a += alpha
+                    weight += alpha
+                    count += 1
+
+            d = (y * size + x) * 4
+            if weight:
+                out.px[d:d + 4] = bytes((r // weight, g // weight, b // weight, a // count))
+            # else: leave fully transparent
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Composition
+# ---------------------------------------------------------------------------
+
+
+def rounded_rect_coverage(x: float, y: float, cx: float, cy: float,
+                          half: float, radius: float) -> float:
+    """Antialiased coverage of a rounded square at a pixel centre.
+
+    Uses the shape's signed distance field, so the corners are smooth at any size
+    without supersampling.
+    """
+    qx = abs(x - cx) - (half - radius)
+    qy = abs(y - cy) - (half - radius)
+    outside = math.hypot(max(qx, 0.0), max(qy, 0.0))
+    distance = outside + min(max(qx, qy), 0.0) - radius
+    if distance <= -0.5:
+        return 1.0
+    if distance >= 0.5:
+        return 0.0
+    return 0.5 - distance
+
+
+def compose(source: Image, size: int) -> Image:
+    """The finished icon at `size` pixels: the artwork on the grid, corners rounded."""
+    plate = max(1, round(size * PLATE / CANVAS))
+    scaled = resize(source, plate)
+
+    canvas = Image(size, size)
+    origin = (size - plate) / 2.0
+    centre = size / 2.0
+    half = plate / 2.0
+    radius = max(0.5, RADIUS * size / CANVAS)
+
+    for y in range(size):
+        py = y + 0.5
+        for x in range(size):
+            coverage = rounded_rect_coverage(x + 0.5, py, centre, centre, half, radius)
+            if coverage <= 0.0:
+                continue
+            sx = int(x - origin)
+            sy = int(y - origin)
+            if not (0 <= sx < plate and 0 <= sy < plate):
+                continue
+            s = (sy * plate + sx) * 4
+            d = (y * size + x) * 4
+            canvas.px[d] = scaled.px[s]
+            canvas.px[d + 1] = scaled.px[s + 1]
+            canvas.px[d + 2] = scaled.px[s + 2]
+            canvas.px[d + 3] = int(round(scaled.px[s + 3] * coverage))
+    return canvas
+
+
+# ---------------------------------------------------------------------------
+# PNG encoding
+# ---------------------------------------------------------------------------
+
+
+def encode_png(image: Image) -> bytes:
+    raw = bytearray()
+    stride = image.width * 4
+    for y in range(image.height):
+        raw.append(0)   # filter type 0 (None)
+        raw += image.px[y * stride:(y + 1) * stride]
+
+    def chunk(tag: bytes, body: bytes) -> bytes:
+        return (struct.pack(">I", len(body)) + tag + body
+                + struct.pack(">I", zlib.crc32(tag + body) & 0xFFFFFFFF))
+
+    header = struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", header)
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+            + chunk(b"IEND", b""))
+
+
+# ---------------------------------------------------------------------------
+# Slots
+# ---------------------------------------------------------------------------
 
 CONTENTS_TEMPLATE = """{{
   "images": [
@@ -283,20 +316,31 @@ CONTENTS_TEMPLATE = """{{
 
 def main() -> None:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = os.path.join(
-        root, "Wrapybara", "Resources", "Assets.xcassets", "AppIcon.appiconset"
-    )
-    os.makedirs(out, exist_ok=True)
+    os.chdir(root)
+
+    if not os.path.exists(SOURCE):
+        raise SystemExit(f"{SOURCE} is missing — the app icon is built from it.")
+
+    with open(SOURCE, "rb") as handle:
+        source = decode_png(handle.read())
+    print(f"source {source.width}×{source.height}", flush=True)
+
+    os.makedirs(APPICONSET, exist_ok=True)
+    os.makedirs(os.path.dirname(README_ICON), exist_ok=True)
 
     rendered: dict[int, bytes] = {}
-    entries = []
-    for point, scale, pixels in SLOTS:
+
+    def render(pixels: int) -> bytes:
         if pixels not in rendered:
             print(f"rendering {pixels}×{pixels}…", flush=True)
-            rendered[pixels] = draw(pixels).png()
+            rendered[pixels] = encode_png(compose(source, pixels))
+        return rendered[pixels]
+
+    entries = []
+    for point, scale, pixels in SLOTS:
         name = f"icon_{point}x{point}@{scale}.png"
-        with open(os.path.join(out, name), "wb") as handle:
-            handle.write(rendered[pixels])
+        with open(os.path.join(APPICONSET, name), "wb") as handle:
+            handle.write(render(pixels))
         entries.append(
             "    {\n"
             '      "idiom": "mac",\n'
@@ -306,10 +350,14 @@ def main() -> None:
             "    }"
         )
 
-    with open(os.path.join(out, "Contents.json"), "w", encoding="utf-8") as handle:
+    with open(os.path.join(APPICONSET, "Contents.json"), "w", encoding="utf-8") as handle:
         handle.write(CONTENTS_TEMPLATE.format(entries=",\n".join(entries)))
-    print(f"wrote {len(SLOTS)} slots to {out}")
+
+    with open(README_ICON, "wb") as handle:
+        handle.write(render(README_ICON_PIXELS))
+
+    print(f"wrote {len(SLOTS)} slots to {APPICONSET} and {README_ICON}")
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

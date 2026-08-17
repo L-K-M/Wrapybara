@@ -40,8 +40,16 @@ xcodebuild -project Wrapybara.xcodeproj -scheme Wrapybara -configuration Debug b
 xcodebuild -project Wrapybara.xcodeproj -scheme Wrapybara -destination 'platform=macOS' test
 ```
 
-The app icon is generated from code: `python3 Tools/make-appicon.py` rewrites the ten
-`AppIcon.appiconset` slots. Edit the geometry in that script, not the PNGs.
+The app icon comes from `media-sources/icon.png`: `python3 Tools/make-appicon.py`
+masks it to the macOS squircle on Apple's 824/1024 grid and rewrites the ten
+`AppIcon.appiconset` slots plus `docs/icon.png`. Replace the source artwork and re-run
+the script — never hand-edit the slot PNGs, and don't drop a full-bleed square into
+the appiconset directly (it would sit in the Dock as a hard square among rounded
+plates, which is the tell this project exists to avoid).
+
+The script decodes, resamples and re-encodes PNG itself, so it needs no image tooling
+installed. It only handles 8-bit non-interlaced RGB/RGBA/grey sources and says so
+loudly otherwise — re-export rather than widening the decoder.
 
 ## The one structural thing to understand first
 

@@ -103,8 +103,10 @@ xcodebuild -project Wrapybara.xcodeproj -scheme Wrapybara -configuration Debug b
 xcodebuild -project Wrapybara.xcodeproj -scheme Wrapybara -destination 'platform=macOS' test
 ```
 
-Or `scripts/build.sh` (see [`CICD.md`](CICD.md)). The app icon is generated from
-code — `python3 Tools/make-appicon.py` rewrites the ten `AppIcon.appiconset` slots.
+Or `scripts/build.sh` (see [`CICD.md`](CICD.md)). The app icon is built from
+`media-sources/icon.png` — `python3 Tools/make-appicon.py` masks it to the macOS
+squircle on Apple's 824/1024 grid and rewrites the ten `AppIcon.appiconset` slots
+plus `docs/icon.png`.
 
 ## How it works
 
