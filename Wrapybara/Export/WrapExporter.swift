@@ -42,9 +42,9 @@ final class WrapExporter {
     private let iconCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 256
-        // Cost is the PNG's byte count (see `setObject(…cost:)` below), so this is a
-        // real byte budget rather than a guess: 128 MB of decoded-at-1024 artwork is
-        // far past any legitimate library, and cheap enough to give away.
+        // Cost is the decoded bitmap's byte footprint (see `setObject(…cost:)`
+        // below), so this is a real memory budget: 128 MB is far past any legitimate
+        // library and cheap enough to give away.
         cache.totalCostLimit = 128 * 1024 * 1024
         return cache
     }()
@@ -141,13 +141,19 @@ final class WrapExporter {
     /// otherwise a freshly drawn monogram.
     ///
     /// Never returns `nil` — an app with no icon at all shows the generic blank page
-    /// in the Dock, which is a worse outcome than initials on a plate.
+    /// in the Dock, which is a worse outcome than initials on a plate. The returned
+    /// instance is shared from a cache across callers — treat it as immutable.
     func resolvedIcon(for wrap: Wrap) -> NSImage {
         let key = "\(wrap.id.uuidString)|\(wrap.updatedAt.timeIntervalSince1970)" as NSString
         if let cached = iconCache.object(forKey: key) { return cached }
         let url = AppSupport.iconURL(forWrapID: wrap.id)
         if let data = try? Data(contentsOf: url), let image = NSImage(data: data), image.isValid {
-            iconCache.setObject(image, forKey: key, cost: data.count)
+            // Cost is the decoded bitmap's footprint, not the PNG's byte count —
+            // the cache bounds memory, and a 1024 RGBA decode is ~4 MB against a
+            // few hundred KB on disk. RGBA at 4 bytes/pixel is an approximation,
+            // and the right one to approximate with.
+            let cost = image.representations.reduce(0) { $0 + $1.pixelsWide * $1.pixelsHigh * 4 }
+            iconCache.setObject(image, forKey: key, cost: cost)
             return image
         }
         return IconComposer.monogram(WrapIcon.initials(for: wrap.name),
