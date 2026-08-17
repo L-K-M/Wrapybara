@@ -128,21 +128,22 @@ struct BuilderSettingsView: View {
         .task {
             // Both probes shell out (`security find-identity`, `xcode-select -p`)
             // through ProcessRunner, which blocks its thread until the tool exits.
-            // Each probe runs in its own detached task so the blocking happens off
-            // the main actor whatever isolation the child tasks inherit, and the
-            // two async-lets overlap them. Cancellation can't interrupt a running
-            // Process, so the guard below is what keeps a dismissed sheet from
-            // publishing stale results. Done once when the sheet opens rather than
-            // on every redraw.
-            async let foundIdentities = Task.detached {
+            // Each runs detached — off the main actor whatever isolation a child
+            // task would inherit — and both start together, so the sheet's wait is
+            // one subprocess round-trip, not two. Cancellation can't interrupt a
+            // running Process, so the guard below is what keeps a dismissed sheet
+            // from publishing stale results. Done once when the sheet opens rather
+            // than on every redraw.
+            let identitiesTask = Task.detached(priority: .userInitiated) {
                 CodeSigner.availableSigningIdentities()
-            }.value
-            async let toolchainFound = Task.detached { CodeSigner.isAvailable }.value
-            let probed = await (identities: foundIdentities, toolchain: toolchainFound)
+            }
+            let toolchainTask = Task.detached(priority: .userInitiated) { CodeSigner.isAvailable }
+            let foundIdentities = await identitiesTask.value
+            let toolchainFound = await toolchainTask.value
             // The sheet may have been dismissed while the tools ran.
             guard !Task.isCancelled else { return }
-            identities = probed.identities
-            isToolchainAvailable = probed.toolchain
+            identities = foundIdentities
+            isToolchainAvailable = toolchainFound
         }
     }
 
