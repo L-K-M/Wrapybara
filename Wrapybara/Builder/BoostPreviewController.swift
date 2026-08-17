@@ -34,6 +34,19 @@ final class BoostPreviewController: NSObject {
     private var lastAppliedWrap: Wrap?
     private var lastAppliedBoost: Boost?
 
+    /// Clears the dedup state so the next `apply` re-runs even for an unchanged
+    /// wrap/boost pair.
+    ///
+    /// A reload re-creates the page (and with it every runtime-injected style); the
+    /// skip guard would otherwise suppress the re-apply until the next edit. In
+    /// practice `installBoosts` re-runs from the navigation decision itself, so this
+    /// is belt-and-braces — but it makes the invariant local and obvious: after a
+    /// page transition, the next `apply` always does its work.
+    private func invalidateLastApplied() {
+        lastAppliedWrap = nil
+        lastAppliedBoost = nil
+    }
+
     // MARK: Contents
 
     /// A configuration carrying only the boost being edited.
@@ -54,8 +67,15 @@ final class BoostPreviewController: NSObject {
                                           generatedBy: "preview")
     }
 
-    func loadHome() { webController.loadHome() }
-    func reload() { webController.reload() }
+    func loadHome() {
+        webController.loadHome()
+        invalidateLastApplied()
+    }
+
+    func reload() {
+        webController.reload()
+        invalidateLastApplied()
+    }
 
     /// Re-applies an edited boost without reloading the page, so the scroll position and
     /// any signed-in state survive a slider drag.
@@ -67,8 +87,7 @@ final class BoostPreviewController: NSObject {
     /// those cases, so skip them; `Wrap` and `Boost` are both `Equatable`, which is
     /// precisely the "did anything the preview applies change?" question.
     func apply(wrap: Wrap, boost: Boost) {
-        if let lastAppliedWrap, let lastAppliedBoost,
-           lastAppliedWrap == wrap, lastAppliedBoost == boost {
+        if lastAppliedWrap == wrap, lastAppliedBoost == boost {
             return
         }
         lastAppliedWrap = wrap
