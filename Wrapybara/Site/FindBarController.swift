@@ -222,6 +222,10 @@ extension FindBarController: NSSearchFieldDelegate {
     /// the key from the page whenever the bar happened to be open.
     func control(_ control: NSControl, textView: NSTextView, doCommandBy command: Selector) -> Bool {
         guard command == #selector(NSResponder.cancelOperation(_:)) else { return false }
+        // Mid-IME composition, Esc belongs to the input method (it cancels the
+        // composition); the field editor normally consumes it first, but don't
+        // close the bar out from under an active marked-text session either way.
+        guard !textView.hasMarkedText() else { return false }
         hide()
         return true
     }
