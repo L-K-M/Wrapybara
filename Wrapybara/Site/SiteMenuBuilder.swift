@@ -37,7 +37,6 @@ enum SiteMenuBuilder {
         menu.addItem(.separator())
         add(menu, "Edit Boosts in Wrapybara…",
             #selector(SiteAppDelegate.openWrapybaraForThisWrap(_:)), target: target)
-        add(menu, "Zap an Element…", #selector(SiteWindowController.beginPickingElement(_:)))
         menu.addItem(.separator())
 
         // The Services menu has to be handed to AppKit explicitly, or Look Up,
@@ -154,7 +153,6 @@ enum SiteMenuBuilder {
         menu.addItem(.separator())
 
         add(menu, "Boosts on This Page…", #selector(SiteWindowController.toggleBoostsInfo(_:)))
-        add(menu, "Zap an Element…", #selector(SiteWindowController.beginPickingElement(_:)))
         menu.addItem(.separator())
 
         let toggleToolbar = add(menu, "Hide Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "t")
