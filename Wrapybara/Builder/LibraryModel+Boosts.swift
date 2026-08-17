@@ -43,6 +43,13 @@ extension LibraryModel {
     /// Adds a ready-made boost to the shared shelf, selected and switched on for no
     /// wrap yet — exactly like an import, minus the file.
     func addPreset(_ boost: Boost) {
+        // The same preset twice is a no-op. Name *and* notes, so a user's own
+        // unrelated "Dark" never blocks the preset, and a re-added preset the user
+        // edited is still recognisably the preset. The model owns this rule rather
+        // than the menu's `disabled`, so any caller gets it.
+        guard !store.library.sharedBoosts.contains(where: {
+            $0.name == boost.name && $0.notes == boost.notes
+        }) else { return }
         var copy = boost
         // A fresh id, so re-adding a preset after renaming (or deleting) the first
         // copy can never collide with an id that already lives on the shelf.

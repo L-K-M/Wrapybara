@@ -87,7 +87,7 @@ struct BoostsTabView: View {
                     ForEach(PresetBoosts.all) { preset in
                         Button(preset.name) { model.addPreset(preset) }
                             .disabled(model.store.library.sharedBoosts.contains {
-                                $0.name == preset.name
+                                $0.name == preset.name && $0.notes == preset.notes
                             })
                     }
                 } label: {
@@ -97,6 +97,7 @@ struct BoostsTabView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help("Add a ready-made boost to the shared shelf")
+                .accessibilityLabel("Add preset boost")
                 Spacer()
                 Button { model.importBoostsFromPanel() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(.borderless)

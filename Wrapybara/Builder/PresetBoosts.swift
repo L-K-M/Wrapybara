@@ -50,8 +50,11 @@ enum PresetBoosts {
         css: """
         /* Sticky and fixed chrome follows you down the page. Re-pinning it as
            absolute (rather than hiding it) scrolls it away with the page while
-           leaving the header itself at the top where it belongs. */
-        header, nav, [role="banner"], [role="navigation"],
+           leaving the header itself at the top where it belongs. Bare `nav`
+           excludes footer/sidebar navs — breadcrumbs and pagination aren't
+           sticky headers, and un-positioning them visibly breaks layouts. */
+        header, [role="banner"],
+        nav:not(footer nav, aside nav),
         [class*="sticky"], [class*="Sticky"],
         [class*="fixed-header"], [class*="FixedHeader"] {
           position: absolute !important;
