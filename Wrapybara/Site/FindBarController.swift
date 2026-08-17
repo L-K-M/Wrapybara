@@ -209,7 +209,7 @@ final class FindBarController: NSObject {
 
 // MARK: - Search field delegate
 
-extension FindBarController: NSTextFieldDelegate {
+extension FindBarController: NSSearchFieldDelegate {
 
     /// Esc closes the bar. Scoped to the field on purpose: a global Esc would steal
     /// the key from the page whenever the bar happened to be open.
