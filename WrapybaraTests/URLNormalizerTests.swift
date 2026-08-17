@@ -98,6 +98,15 @@ final class URLNormalizerTests: XCTestCase {
         XCTAssertEqual(suggested("https://localhost:3000"), "Localhost")
     }
 
+    func testSuggestedNameForIPAddresses() {
+        // An all-numeric label is an IP octet, and "1" is not an app name — the
+        // full address at least names the thing honestly.
+        XCTAssertEqual(suggested("http://192.168.1.1:8080"), "192.168.1.1")
+        XCTAssertEqual(suggested("http://127.0.0.1/admin"), "127.0.0.1")
+        // An IPv6 literal has no usable label at all; empty means "ask the site".
+        XCTAssertEqual(suggested("http://[::1]:3000"), "")
+    }
+
     private func suggested(_ string: String) -> String {
         URLNormalizer.suggestedName(for: URL(string: string)!)
     }

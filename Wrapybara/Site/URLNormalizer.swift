@@ -70,6 +70,9 @@ enum URLNormalizer {
     static func suggestedName(for url: URL) -> String {
         var host = (url.host ?? "").lowercased()
         if host.hasPrefix("www.") { host.removeFirst(4) }
+        // An IPv6 literal has no useful label to offer — leave the name to the
+        // site (the caller falls back to the manifest/<title>, then "Web App").
+        if host.contains(":") { return "" }
         let labels = host.split(separator: ".").map(String.init)
         guard !labels.isEmpty else { return "" }
 
@@ -80,8 +83,11 @@ enum URLNormalizer {
         if labels.count >= 3, multiPartSuffixes.contains(labels[labels.count - 2]) {
             index = labels.count - 3
         }
-        guard index >= 0, index < labels.count else { return labels[0].capitalized }
-        let label = labels[index]
-        return label.isEmpty ? "" : label.prefix(1).uppercased() + label.dropFirst()
+        let label = (index >= 0 && index < labels.count) ? labels[index] : labels[0]
+        guard !label.isEmpty else { return "" }
+        // An all-numeric label means the host is an IP address, and "1" is not an
+        // app name. The full address ("192.168.1.1") at least names it honestly.
+        if label.allSatisfy(\.isNumber) { return host }
+        return label.prefix(1).uppercased() + label.dropFirst()
     }
 }
