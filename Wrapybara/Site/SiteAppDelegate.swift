@@ -225,9 +225,11 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
 
     /// Mirrors the unread count a browser tab would show, read out of the page title.
     ///
-    /// A browser's tab strip effectively shows the *maximum* unread count across
-    /// tabs, so the badge considers every open window rather than only the front one —
-    /// otherwise a background window's "(3) Inbox" never reaches the Dock.
+    /// Browsers badge each tab individually; the Dock shows a single badge, so mirror
+    /// the busiest window rather than only the front one — a background window's
+    /// "(3) Inbox" still has to reach the Dock. A marker badge with no number ("•")
+    /// is shown when no window carries a count, preferring the front window's marker
+    /// when more than one kind is showing.
     private func updateBadge() {
         guard wrap.behavior.showsBadgeFromTitle else {
             NSApp.dockTile.badgeLabel = nil
@@ -237,9 +239,13 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
         var markerBadge: String?
         for controller in windowControllers {
             guard let title = controller.window?.title else { continue }
-            if let count = BadgeFromTitle.count(for: title) {
+            // `count(for:)` can't produce 0 today (a "(0)" title parses to no badge
+            // at all), but the guard costs nothing and keeps a zero from ever beating
+            // a real count from another window.
+            if let count = BadgeFromTitle.count(for: title), count > 0 {
                 bestCount = max(bestCount ?? 0, count)
-            } else if let badge = BadgeFromTitle.badge(for: title) {
+            } else if let badge = BadgeFromTitle.badge(for: title),
+                      controller === frontWindowController || markerBadge == nil {
                 markerBadge = badge
             }
         }
