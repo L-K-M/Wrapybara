@@ -25,6 +25,12 @@ final class FindBarController: NSObject {
     /// The last string searched, so ⌘G can repeat it without the bar being focused.
     private var lastQuery = ""
 
+    /// Whether ⌘G/⇧⌘G have something to repeat — used by menu validation, so a
+    /// repeat search works without reopening the bar, the way Safari's does.
+    var canRepeatFind: Bool {
+        !lastQuery.isEmpty || !searchField.stringValue.isEmpty
+    }
+
     /// Collapses the bar to zero height while hidden.
     ///
     /// `isHidden` alone is not enough: a hidden view still contributes its intrinsic
@@ -118,7 +124,10 @@ final class FindBarController: NSObject {
             // inventing an "n of m".
             self.statusLabel.stringValue = result.matchFound ? "" : "Not found"
             self.statusLabel.textColor = result.matchFound ? .secondaryLabelColor : .systemRed
-            if !result.matchFound { NSSound.beep() }
+            // Beep only for an explicit repeat (⌘G). Beeping per keystroke while the
+            // user is still typing a word — whose early prefixes often match nothing —
+            // is the kind of thing that gets a find bar muted forever.
+            if !result.matchFound, !fromUserTyping { NSSound.beep() }
         }
     }
 
@@ -137,6 +146,8 @@ final class FindBarController: NSObject {
         searchField.placeholderString = "Find on page"
         searchField.target = self
         searchField.action = #selector(searchFieldChanged)
+        // Lets Esc close the bar — see the delegate extension below.
+        searchField.delegate = self
         // Search as you type, like Safari.
         searchField.sendsSearchStringImmediately = false
         searchField.sendsWholeSearchString = false
@@ -193,5 +204,18 @@ final class FindBarController: NSObject {
         button.toolTip = tooltip
         button.target = self
         button.action = action
+    }
+}
+
+// MARK: - Search field delegate
+
+extension FindBarController: NSTextFieldDelegate {
+
+    /// Esc closes the bar. Scoped to the field on purpose: a global Esc would steal
+    /// the key from the page whenever the bar happened to be open.
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy command: Selector) -> Bool {
+        guard command == #selector(NSResponder.cancelOperation(_:)) else { return false }
+        hide()
+        return true
     }
 }
