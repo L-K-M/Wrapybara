@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Wrapybara is NOT sandboxed, and can't be: its whole job is to write new
+	  .app bundles into /Applications (or wherever you point it) and then run
+	  /usr/bin/codesign over them. A sandboxed app can do neither. The App Store
+	  is therefore out of scope; distribution is Developer ID + notarization with
+	  the Hardened Runtime (today: unsigned/ad-hoc — see CICD.md). This file
+	  deliberately enables no App Sandbox key.
+
+	  The apps Wrapybara *generates* get their own hand-written Info.plist and no
+	  entitlements file at all: they are ad-hoc signed without the Hardened
+	  Runtime, so WKWebView's camera/microphone access needs only the usage
+	  strings plus the normal per-app TCC prompt.
+	-->
+</dict>
+</plist>
