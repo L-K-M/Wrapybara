@@ -282,7 +282,11 @@ Not one feature — the absence of twenty small failures.
   and confirm a timer-driven page still advances on wake — the unit tests pin the
   preference keys, not WebKit's behaviour or App Nap. A key retired upstream only
   shows up on the macOS that retired it, so run the suite on the oldest supported
-  macOS and a current beta before a release.
+  macOS and a current beta before a release. The keys only lift timer throttling
+  and WebKit's own suppression: a page that pauses on `visibilitychange` or
+  drives updates via `requestAnimationFrame` still freezes when covered, by
+  spec — so run the check with a site users actually wrap, not only a
+  timer-driven test page.
 
 ---
 
