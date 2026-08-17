@@ -42,6 +42,10 @@ final class WrapExporter {
     private let iconCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 256
+        // Cost is the PNG's byte count (see `setObject(…cost:)` below), so this is a
+        // real byte budget rather than a guess: 128 MB of decoded-at-1024 artwork is
+        // far past any legitimate library, and cheap enough to give away.
+        cache.totalCostLimit = 128 * 1024 * 1024
         return cache
     }()
 
@@ -143,7 +147,7 @@ final class WrapExporter {
         if let cached = iconCache.object(forKey: key) { return cached }
         let url = AppSupport.iconURL(forWrapID: wrap.id)
         if let data = try? Data(contentsOf: url), let image = NSImage(data: data), image.isValid {
-            iconCache.setObject(image, forKey: key)
+            iconCache.setObject(image, forKey: key, cost: data.count)
             return image
         }
         return IconComposer.monogram(WrapIcon.initials(for: wrap.name),
