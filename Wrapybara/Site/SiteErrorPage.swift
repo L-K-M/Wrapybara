@@ -32,17 +32,15 @@ enum SiteErrorPage {
     /// destination (`A → 301 → B` failing at B reports B), while the URL the
     /// navigation was allowed for is the pre-redirect one. Naming — and retrying —
     /// A would blame the wrong address and fail again on every Try Again. Only
-    /// `http(s)` is accepted from the error itself (the value is typo- and
-    /// attacker-shaped); the fallbacks are the app's own URLs.
+    /// `http(s)` is accepted, from the error's own values and from the fallbacks
+    /// alike — a `Try Again` that targets anything else can't be a page load.
     static func failingURL(for error: Error, fallbacks: [URL?]) -> URL? {
         let userInfo = (error as NSError).userInfo
-        let webSchemes: Set<String> = ["http", "https"]
-        if let url = userInfo[NSURLErrorFailingURLErrorKey] as? URL,
-           webSchemes.contains(url.scheme?.lowercased() ?? "") { return url }
+        let isWeb = { (url: URL?) in ["http", "https"].contains(url?.scheme?.lowercased() ?? "") }
+        if let url = userInfo[NSURLErrorFailingURLErrorKey] as? URL, isWeb(url) { return url }
         if let string = userInfo[NSURLErrorFailingURLStringErrorKey] as? String,
-           let url = URL(string: string),
-           webSchemes.contains(url.scheme?.lowercased() ?? "") { return url }
-        return fallbacks.lazy.compactMap { $0 }.first
+           let url = URL(string: string), isWeb(url) { return url }
+        return fallbacks.lazy.compactMap { $0 }.first(where: isWeb)
     }
 
     /// White or near-black, whichever reads on `hex`. The wrap's tint can be any

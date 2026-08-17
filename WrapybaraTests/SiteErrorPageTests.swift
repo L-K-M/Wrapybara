@@ -112,6 +112,15 @@ final class SiteErrorPageTests: XCTestCase {
         XCTAssertEqual(SiteErrorPage.failingURL(for: error, fallbacks: [nil, first, second]), first)
     }
 
+    func testNonWebFallbacksAreSkipped() {
+        // Try Again has to be a page load; an about:blank or file: fallback is
+        // skipped in favour of the next web URL in the chain.
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        let blank = URL(string: "about:blank")!
+        let real = URL(string: "https://real.example.com")!
+        XCTAssertEqual(SiteErrorPage.failingURL(for: error, fallbacks: [blank, real]), real)
+    }
+
     // MARK: Button contrast
 
     func testLightTintsGetDarkButtonText() {

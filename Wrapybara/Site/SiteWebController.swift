@@ -325,6 +325,12 @@ extension SiteWebController: WKNavigationDelegate {
         let failedURL = SiteErrorPage.failingURL(
             for: error,
             fallbacks: [lastRequestedURL, webView.url, wrap.homeURL]) ?? wrap.homeURL
+        // The error page is the recovery screen: it has to stay legible whatever
+        // the wrap's boosts would do to it. The installed user scripts are dropped
+        // for this one document, and `boostedURL` is reset so the Try Again
+        // navigation re-installs the full set on the way through decidePolicyFor.
+        webView.configuration.userContentController.removeAllUserScripts()
+        boostedURL = nil
         // baseURL about:blank keeps the page at an opaque origin rather than the
         // failed site's — nothing on it needs the site origin (the retry link is
         // absolute), and the page displays the failed address itself.
