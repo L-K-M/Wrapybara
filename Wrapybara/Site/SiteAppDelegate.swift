@@ -15,6 +15,10 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     private lazy var watcher = ConfigurationWatcher(directory: AppSupport.runtimeDirectory)
     private var settingsWindow: SiteSettingsWindowController?
 
+    /// The `NSProcessInfo` activity that keeps App Nap away while this app has
+    /// something live. See `updateAppNapExemption`.
+    private var appNapExemption: NSObjectProtocol?
+
     private var wrap: Wrap { configuration.wrap }
 
     init(configuration: WrapConfiguration) {
@@ -29,6 +33,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.mainMenu = SiteMenuBuilder.mainMenu(appName: wrap.name, wrap: wrap, target: self)
         downloads.completion = .revealInFinder
+        downloads.onActiveCountChanged = { [weak self] _ in self?.updateAppNapExemption() }
 
         notifications.onActivate = { [weak self] pageID in
             self?.handleNotificationClick(pageID: pageID)
@@ -81,6 +86,10 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
         guard !Self.isRunningTests else { return }
         saveSession()
         watcher.stop()
+        if let appNapExemption {
+            ProcessInfo.processInfo.endActivity(appNapExemption)
+            self.appNapExemption = nil
+        }
     }
 
     /// Opt into secure state restoration, silencing the macOS 14+ launch warning. The
@@ -148,6 +157,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             self?.updateBadge()
         }
         windowControllers.append(controller)
+        updateAppNapExemption()
 
         // Drop the controller when its window closes, or every tab ever opened stays
         // alive holding a web content process. The token is captured so the observation
@@ -160,6 +170,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
                 guard let self, let controller else { return }
                 self.windowControllers.removeAll { $0 === controller }
                 self.updateBadge()
+                self.updateAppNapExemption()
             }
         return controller
     }
@@ -219,6 +230,43 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             controller.apply(fresh)
         }
         updateBadge()
+    }
+
+    // MARK: Power
+
+    /// Keeps App Nap away while a window is open or a download is in flight.
+    ///
+    /// A page driven by a long server stream — an agent writing a reply, a live
+    /// dashboard — produces no user input and no audio while it works. macOS naps
+    /// exactly such apps: not foreground, nothing recently drawn in a visible
+    /// window, inaudible, holding no `NSProcessInfo` assertion. Once napped, the
+    /// system throttles the app's timers, I/O and CPU — and the WebContent process
+    /// is this app's child, so the stream freezes mid-sentence while the server
+    /// keeps running. The connection can die while suspended, in which case the
+    /// page never catches up even after the app is focused again.
+    ///
+    /// Taking an activity assertion removes the app — and its process tree — from
+    /// App Nap candidacy, which is what Safari does for itself and what any
+    /// `WKWebView` host that shows live content has to do for its pages.
+    ///
+    /// `.userInitiatedAllowingIdleSystemSleep` is the honest strength: the user
+    /// opened this app and expects its page to stay current *now*, but the system
+    /// may still sleep — with the display asleep nobody is watching, and the page
+    /// resumes on wake. Deliberately not `.idleSystemSleepDisabled`, which would
+    /// keep the whole machine awake for a chat window.
+    ///
+    /// Released when the last window closes and no download is running, so a
+    /// stay-resident app sitting in the Dock with nothing live still naps.
+    private func updateAppNapExemption() {
+        let live = !windowControllers.isEmpty || downloads.activeCount > 0
+        if live, appNapExemption == nil {
+            appNapExemption = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiatedAllowingIdleSystemSleep],
+                reason: "Showing a web page the user expects to stay current")
+        } else if !live, let appNapExemption {
+            ProcessInfo.processInfo.endActivity(appNapExemption)
+            self.appNapExemption = nil
+        }
     }
 
     // MARK: Dock badge

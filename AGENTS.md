@@ -125,6 +125,12 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
 - **Values that don't parse are dropped, not escaped.** A colour that isn't a colour
   emits no declaration; a zap selector with a brace is discarded. Escaping it would
   produce something that no longer selects what the user picked.
+- **A site app must hold a `ProcessInfo` activity while a window or download is
+  live** (`SiteAppDelegate.updateAppNapExemption`). Without it App Nap throttles the
+  app and its WebContent child once the app isn't foreground, and server-driven
+  pages freeze mid-stream — the "app stopped updating but the server kept running"
+  bug. `.userInitiatedAllowingIdleSystemSleep` only; nothing that pins the display
+  or system awake.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
 

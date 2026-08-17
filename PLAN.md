@@ -262,6 +262,14 @@ Not one feature — the absence of twenty small failures.
   hosts are configurable, which is the fix for an SSO hop on another domain.
 - **Handoff.** The current page is published as an `NSUserActivity`, so it can be
   picked up on an iPhone.
+- **Stays out of App Nap.** A site app showing a server-driven page — a stream, an
+  agent writing a reply — generates no input events of its own, so macOS naps it as
+  soon as it isn't foreground: timers throttled, I/O throttled, and the WebContent
+  process (the app's child) freezes mid-stream while the server carries on. The
+  runtime holds a `ProcessInfo` activity (`.userInitiatedAllowingIdleSystemSleep`)
+  while any window is open or a download is in flight — Safari's own exemption,
+  taken by the embedder — and releases it when nothing is live, so a stay-resident
+  app in the Dock still naps.
 - **Dock badge.** Read out of the page title the way a browser tab does, with a
   deliberate asymmetry: a leading `(n)` takes counts up to six digits; a trailing
   one is capped at three, because `Annual Report (2024)` is a year.

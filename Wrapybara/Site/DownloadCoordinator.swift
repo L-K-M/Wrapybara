@@ -21,6 +21,11 @@ final class DownloadCoordinator: NSObject {
 
     var completion: Completion = .revealInFinder
 
+    /// Fired whenever `activeCount` changes, so the app delegate can hold its
+    /// process activity for a download that must keep running — the one case where
+    /// work continues with no window open.
+    var onActiveCountChanged: ((Int) -> Void)?
+
     /// Live downloads, keyed by the `WKDownload` that owns them, so progress can be
     /// attributed and the delegate can be dropped when it finishes.
     private var active: [ObjectIdentifier: Entry] = [:]
@@ -54,6 +59,7 @@ final class DownloadCoordinator: NSObject {
         progress.cancellationHandler = { download.cancel() }
         active[ObjectIdentifier(download)] = Entry(download: download, destination: nil,
                                                    progress: progress)
+        onActiveCountChanged?(active.count)
     }
 
     var activeCount: Int { active.count }
@@ -63,6 +69,7 @@ final class DownloadCoordinator: NSObject {
     func cancelAll() {
         for entry in active.values { entry.download.cancel() }
         active.removeAll()
+        onActiveCountChanged?(active.count)
     }
 
     // MARK: Placement
@@ -148,6 +155,7 @@ extension DownloadCoordinator: WKDownloadDelegate {
         active[key]?.progress.cancellationHandler = nil
         if active[key]?.isPublished == true { active[key]?.progress.unpublish() }
         active[key] = nil
+        onActiveCountChanged?(active.count)
     }
 
     private func present(_ error: Error, title: String) {
