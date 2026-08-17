@@ -112,7 +112,11 @@ enum IconComposer {
     ///
     /// A fetched favicon can arrive as a multi-representation ICO or an SVG-backed
     /// image; drawing it once into a known-size canvas gives everything downstream
-    /// one predictable representation to work with.
+    /// one predictable representation to work with. Non-square images are
+    /// aspect-fitted and centered, leaving transparent bands where the image
+    /// doesn't fill the square — the only caller is `.asIs` artwork composition,
+    /// where that's the point; a caller needing edge-to-edge coverage shouldn't
+    /// route through here.
     static func redraw(_ image: NSImage, edge: CGFloat) -> NSImage {
         let canvasRect = NSRect(x: 0, y: 0, width: edge, height: edge)
         return NSImage(size: NSSize(width: edge, height: edge), flipped: false) { _ in
@@ -130,10 +134,13 @@ enum IconComposer {
         guard size.width > 0, size.height > 0 else { return bounds }
         let scale = min(bounds.width / size.width, bounds.height / size.height)
         let fitted = NSSize(width: size.width * scale, height: size.height * scale)
+        // `.integral` snaps to whole points: a fractional origin antialiases the
+        // artwork's edges, which is exactly what the small icns sizes show. The
+        // boxes passed in are integral, so rounding outward stays within a point.
         return NSRect(x: bounds.midX - fitted.width / 2,
                       y: bounds.midY - fitted.height / 2,
                       width: fitted.width,
-                      height: fitted.height)
+                      height: fitted.height).integral
     }
 
     /// The plate colour for a wrap: its stored tint, or Wrapybara's brown.
