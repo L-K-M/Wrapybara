@@ -1,4 +1,5 @@
 import WebKit
+import os
 
 /// Builds the `WKWebView` a site app runs in.
 ///
@@ -9,6 +10,10 @@ import WebKit
 /// user agent unless the wrap overrides it, back/forward swipe, pinch magnification,
 /// and inline media.
 enum SiteWebViewFactory {
+
+    /// A fixed subsystem across every wrap, so the retired-key diagnostic can be
+    /// filtered in Console no matter which app the binary was copied into.
+    private static let logger = Logger(subsystem: "Wrapybara", category: "SiteWebViewFactory")
 
     /// The `WKPreferences` keys that make a hidden page stop throttling.
     ///
@@ -73,7 +78,9 @@ enum SiteWebViewFactory {
             guard respondsToThrottlingSetter(for: key, on: configuration.preferences) else {
                 // A user whose macOS retired a key would otherwise silently get the
                 // throttling back — this log line is how that becomes a diagnosis.
-                NSLog("Wrapybara: WebKit no longer knows \(key); hidden-page throttle opt-out incomplete")
+                // Unified logging so it can be filtered by subsystem/category when
+                // it comes back from a user's machine.
+                logger.warning("WebKit no longer knows \(key, privacy: .public); hidden-page throttle opt-out incomplete")
                 continue
             }
             configuration.preferences.setValue(false, forKey: key)

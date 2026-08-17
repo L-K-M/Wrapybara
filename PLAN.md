@@ -280,7 +280,9 @@ Not one feature — the absence of twenty small failures.
   page in a wrap, cover or miniaturise the window for a minute, and confirm the
   stream is still live; also leave it hidden 5+ minutes with the display asleep
   and confirm a timer-driven page still advances on wake — the unit tests pin the
-  preference keys, not WebKit's behaviour or App Nap.
+  preference keys, not WebKit's behaviour or App Nap. A key retired upstream only
+  shows up on the macOS that retired it, so run the suite on the oldest supported
+  macOS and a current beta before a release.
 
 ---
 
