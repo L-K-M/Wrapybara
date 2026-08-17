@@ -222,8 +222,10 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         static let address = NSToolbarItem.Identifier("address")
     }
 
-    private var addressLabel: NSTextField?
-    private var navigationControl: NSSegmentedControl?
+    /// Weak: the toolbar retains its items and their views, so these die with
+    /// the item instead of being kept alive offscreen after customization.
+    private weak var addressLabel: NSTextField?
+    private weak var navigationControl: NSSegmentedControl?
     /// Weak: the toolbar owns its items, and a customised-out item should die.
     private weak var reloadToolbarItem: NSToolbarItem?
 
@@ -264,12 +266,18 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         onPageChanged?(self)
     }
 
+    /// The state the reload item is currently showing, so unchanged states skip
+    /// the image/action rewrite (a fresh SF Symbol per KVO tick is churn, and
+    /// reassigning an identical image can flicker in some toolbar modes).
+    private var reloadItemShowsStop = false
+
     /// Swaps the toolbar's reload button for a stop button while a load is in
     /// flight — the one piece of loading feedback a toolbar owes the user. The
     /// View menu's Stop Loading has always validated correctly; the toolbar had
     /// no state at all.
     private func updateReloadStopItem(isLoading: Bool) {
-        guard let item = reloadToolbarItem else { return }
+        guard let item = reloadToolbarItem, isLoading != reloadItemShowsStop else { return }
+        reloadItemShowsStop = isLoading
         if isLoading {
             item.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Stop")
             item.action = #selector(stopLoading(_:))
@@ -417,6 +425,9 @@ extension SiteWindowController: NSToolbarDelegate {
             // swap at an item nobody sees.
             if flag {
                 reloadToolbarItem = item
+                // The fresh item shows Reload; reset the tracked state so the
+                // sync below can't be skipped by an unchanged-from-before flag.
+                reloadItemShowsStop = false
                 updateReloadStopItem(isLoading: webController.webView.isLoading)
             }
             return item
