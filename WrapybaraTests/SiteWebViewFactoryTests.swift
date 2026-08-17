@@ -19,20 +19,18 @@ final class SiteWebViewFactoryTests: XCTestCase {
              bundleIdentifier: "com.example.test")
     }
 
-    /// Runs the factory against a fresh configuration and asserts `key` is present
-    /// and false. `value(forKey:)` on a key WebKit no longer knows raises an
-    /// uncatchable `NSUndefinedKeyException`, so the same setter probe production
-    /// uses comes first — and it has to halt execution, because `XCTAssertTrue`
-    /// only records a failure and would let the read through.
-    private func assertThrottlingDisabled(_ key: String) {
-        let configuration = WKWebViewConfiguration()
-        SiteWebViewFactory.preventHiddenPageThrottling(configuration)
-        let preferences = configuration.preferences
+    /// Asserts `key` is present and false on `preferences`. `value(forKey:)` on a
+    /// key WebKit no longer knows raises an uncatchable `NSUndefinedKeyException`,
+    /// so the same setter probe production uses comes first — and it has to halt
+    /// execution, because `XCTAssertTrue` only records a failure and would let the
+    /// read through.
+    private func assertThrottlingDisabled(_ key: String, on preferences: WKPreferences) {
         guard SiteWebViewFactory.respondsToThrottlingSetter(for: key, on: preferences) else {
             XCTFail("\(key) is no longer a known WKPreferences key")
             return
         }
-        XCTAssertFalse(preferences.value(forKey: key) as? Bool ?? true)
+        XCTAssertFalse(preferences.value(forKey: key) as? Bool ?? true,
+                       "\(key) should be disabled")
     }
 
     /// Every key the factory opts out of must actually be set false. Iterating the
@@ -40,8 +38,10 @@ final class SiteWebViewFactoryTests: XCTestCase {
     /// `hiddenPageThrottlingPreferenceKeys` is asserted automatically — and the
     /// guard above fails loudly if a key WebKit has retired was never set.
     func testAllConfiguredThrottlingKeysAreDisabled() {
+        let configuration = WKWebViewConfiguration()
+        SiteWebViewFactory.preventHiddenPageThrottling(configuration)
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {
-            assertThrottlingDisabled(key)
+            assertThrottlingDisabled(key, on: configuration.preferences)
         }
     }
 
@@ -52,13 +52,7 @@ final class SiteWebViewFactoryTests: XCTestCase {
     func testMakeWebViewOptsOutOfHiddenPageThrottling() {
         let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {
-            let preferences = webView.configuration.preferences
-            guard SiteWebViewFactory.respondsToThrottlingSetter(for: key, on: preferences) else {
-                XCTFail("\(key) is no longer a known WKPreferences key")
-                continue
-            }
-            XCTAssertFalse(preferences.value(forKey: key) as? Bool ?? true,
-                           "\(key) should be disabled by makeWebView")
+            assertThrottlingDisabled(key, on: webView.configuration.preferences)
         }
     }
 }

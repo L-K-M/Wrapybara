@@ -25,35 +25,38 @@ enum SiteWebViewFactory {
     /// These are the undocumented preferences Playwright, Bun and MacPin set for
     /// exactly this reason (they're the WebKit-internal controls for hidden-page
     /// throttling). Set through KVC because they carry a leading underscore and
-    /// so have no public Swift surface.
+    /// so have no public Swift surface. Precedent, for anyone re-checking later:
+    /// Playwright sets all three in `browser_patches/webkit/embedder/Playwright/
+    /// mac/AppDelegate.m`, Bun the process-suppression key in `src/runtime/
+    /// webview/ObjCRuntime.cpp`, and MacPin — a similar site-wrapper — declares
+    /// them in `modules/WebKitPrivates/WKPreferencesPrivate.h`.
     static let hiddenPageThrottlingPreferenceKeys = [
         "hiddenPageDOMTimerThrottlingEnabled",
         "hiddenPageDOMTimerThrottlingAutoIncreases",
         "pageVisibilityBasedProcessSuppressionEnabled",
     ]
 
-    /// The `_set<Key>:` selector KVC resolves for `key`.
+    /// The `set<Key>:` (or `_set<Key>:`) selector KVC resolves for `key`.
     ///
-    /// `setValue(_:forKey:)` looks for `set<Key>:` then `_set<Key>:`, and these
-    /// keys expose only the `_set` form. The trailing colon matters: a setter
-    /// takes an argument, so its selector is `_setHiddenPageDOMTimerThrottlingEnabled:`,
-    /// not `...Enabled`.
-    static func setterName(for key: String) -> String {
-        "_set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
+    /// `setValue(_:forKey:)` looks for `set<Key>:` first and falls back to
+    /// `_set<Key>:`. These keys expose only the underscored form. The trailing
+    /// colon matters: a setter takes an argument, so its selector is
+    /// `_setHiddenPageDOMTimerThrottlingEnabled:`, not `...Enabled`.
+    static func setterSelector(for key: String, underscored: Bool) -> Selector {
+        NSSelectorFromString((underscored ? "_set" : "set")
+            + key.prefix(1).uppercased() + key.dropFirst() + ":")
     }
 
     /// Whether `preferences` can be written with `setValue(_:forKey:)` for `key`
     /// without raising.
     ///
-    /// KVC resolves `set<Key>:` first and falls back to `_set<Key>:`, so probe
-    /// both. A key WebKit has retired raises an uncatchable
-    /// `NSUndefinedKeyException` from `setValue`, so probe before calling it —
-    /// probe true guarantees the write won't throw, probe false means skip.
-    /// Shared with the tests so production and CI can't drift.
+    /// A key WebKit has retired raises an uncatchable `NSUndefinedKeyException`
+    /// from `setValue`, so probe before calling it — probe true guarantees the
+    /// write won't throw, probe false means skip. Shared with the tests so
+    /// production and CI can't drift.
     static func respondsToThrottlingSetter(for key: String, on preferences: WKPreferences) -> Bool {
-        let publicSetter = NSSelectorFromString("set" + key.prefix(1).uppercased() + key.dropFirst() + ":")
-        return preferences.responds(to: publicSetter)
-            || preferences.responds(to: NSSelectorFromString(setterName(for: key)))
+        preferences.responds(to: setterSelector(for: key, underscored: false))
+            || preferences.responds(to: setterSelector(for: key, underscored: true))
     }
 
     /// Opts `configuration` out of macOS's hidden-page throttling.

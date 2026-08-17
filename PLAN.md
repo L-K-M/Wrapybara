@@ -278,8 +278,9 @@ Not one feature — the absence of twenty small failures.
   `WKPreferences` keys set via KVC — fine under Developer ID distribution, but
   re-review before any Mac App Store submission. Release check: open a streaming
   page in a wrap, cover or miniaturise the window for a minute, and confirm the
-  stream is still live — the unit tests pin the preference keys, not WebKit's
-  behaviour.
+  stream is still live; also leave it hidden 5+ minutes with the display asleep
+  and confirm a timer-driven page still advances on wake — the unit tests pin the
+  preference keys, not WebKit's behaviour or App Nap.
 
 ---
 
