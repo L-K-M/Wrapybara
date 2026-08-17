@@ -19,6 +19,11 @@ final class WrapStore: ObservableObject {
     private let file: JSONFileStore
     private let libraryURL: URL
     private var saveTimer: Timer?
+    /// Wraps whose runtime configuration is waiting for the debounced flush. The
+    /// publish and the library save share one timer: a burst of edits (typing in
+    /// the CSS field, dragging a slider) becomes one re-publication that running
+    /// apps pick up, rather than one disk write per keystroke.
+    private var pendingWrapIDs: Set<UUID> = []
     /// Long enough to coalesce a slider drag, short enough that quitting right after
     /// an edit doesn't need the terminate-time flush to save the day (it still does).
     private let saveDebounce: TimeInterval = 0.4
@@ -51,6 +56,18 @@ final class WrapStore: ObservableObject {
     func flush() {
         saveTimer?.invalidate()
         saveTimer = nil
+        // Publish before saving: a running app only watches the runtime file, so
+        // this is the step that makes the flush visible outside the builder.
+        let ids = pendingWrapIDs
+        pendingWrapIDs.removeAll()
+        for id in ids {
+            guard let wrap = library.wrap(id: id) else { continue }
+            do {
+                try publishRuntimeConfiguration(for: wrap)
+            } catch {
+                lastError = "Couldn't update \(wrap.name): \(error.localizedDescription)"
+            }
+        }
         do {
             try file.save(library, to: libraryURL)
             lastError = nil
@@ -87,6 +104,9 @@ final class WrapStore: ObservableObject {
 
     func remove(wrapID: UUID) {
         library.wraps.removeAll { $0.id == wrapID }
+        // A wrap removed before its pending publication lands must not be
+        // resurrected by the flush — the runtime file is being deleted here.
+        pendingWrapIDs.remove(wrapID)
         // Leave the built `.app` alone — deleting a library entry is not a request to
         // delete an application the user may have in their Dock. The library window
         // offers that as a separate, explicit action.
@@ -132,17 +152,17 @@ final class WrapStore: ObservableObject {
 
     // MARK: Runtime publication
 
-    /// Writes the resolved configuration for every wrap in `wrapIDs` into the shared
-    /// runtime directory, then schedules a library save.
+    /// Queues the resolved configuration for every wrap in `wrapIDs` for the
+    /// debounced flush, which publishes them to the shared runtime directory and
+    /// saves the library together.
+    ///
+    /// Publication is debounced for the same reason the save is: the boost editor
+    /// writes through on every keystroke, and each synchronous publish was an encode
+    /// plus an atomic file write that every running site app then woke up to re-read.
+    /// A running app still sees an edit within the debounce interval — "live" needs
+    /// to be timely, not instantaneous-at-any-cost.
     private func didChange(wrapIDs: [UUID]) {
-        for id in wrapIDs {
-            guard let wrap = library.wrap(id: id) else { continue }
-            do {
-                try publishRuntimeConfiguration(for: wrap)
-            } catch {
-                lastError = "Couldn't update \(wrap.name): \(error.localizedDescription)"
-            }
-        }
+        pendingWrapIDs.formUnion(wrapIDs)
         scheduleSave()
     }
 
