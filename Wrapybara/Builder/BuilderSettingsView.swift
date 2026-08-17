@@ -127,18 +127,22 @@ struct BuilderSettingsView: View {
         .frame(width: 560, height: 620)
         .task {
             // Both probes shell out (`security find-identity`, `xcode-select -p`)
-            // through ProcessRunner, which blocks the calling thread until the
-            // tool exits. Plain `async let` keeps them structured — SE-0338 runs
-            // the synchronous child work off the main actor — so dismissing the
-            // sheet cancels what's cancellable, and the two probes overlap. Done
-            // once when the sheet opens rather than on every redraw.
-            async let foundIdentities = CodeSigner.availableSigningIdentities()
-            async let toolchainFound = CodeSigner.isAvailable
-            let (identities, toolchain) = await (foundIdentities, toolchainFound)
+            // through ProcessRunner, which blocks its thread until the tool exits.
+            // Each probe runs in its own detached task so the blocking happens off
+            // the main actor whatever isolation the child tasks inherit, and the
+            // two async-lets overlap them. Cancellation can't interrupt a running
+            // Process, so the guard below is what keeps a dismissed sheet from
+            // publishing stale results. Done once when the sheet opens rather than
+            // on every redraw.
+            async let foundIdentities = Task.detached {
+                CodeSigner.availableSigningIdentities()
+            }.value
+            async let toolchainFound = Task.detached { CodeSigner.isAvailable }.value
+            let probed = await (identities: foundIdentities, toolchain: toolchainFound)
             // The sheet may have been dismissed while the tools ran.
             guard !Task.isCancelled else { return }
-            self.identities = identities
-            isToolchainAvailable = toolchain
+            identities = probed.identities
+            isToolchainAvailable = probed.toolchain
         }
     }
 
