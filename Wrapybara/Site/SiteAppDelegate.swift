@@ -229,7 +229,8 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     /// the busiest window rather than only the front one — a background window's
     /// "(3) Inbox" still has to reach the Dock. A marker badge with no number ("•")
     /// is shown when no window carries a count, preferring the front window's marker
-    /// when more than one kind is showing.
+    /// when more than one kind is showing; if the front window shows no marker, the
+    /// first marked window in `windowControllers` order wins the tie-break.
     private func updateBadge() {
         guard wrap.behavior.showsBadgeFromTitle else {
             NSApp.dockTile.badgeLabel = nil
