@@ -60,17 +60,23 @@ final class WrapStore: ObservableObject {
         // this is the step that makes the flush visible outside the builder.
         let ids = pendingWrapIDs
         pendingWrapIDs.removeAll()
+        var publishError: String?
         for id in ids {
             guard let wrap = library.wrap(id: id) else { continue }
             do {
                 try publishRuntimeConfiguration(for: wrap)
             } catch {
-                lastError = "Couldn't update \(wrap.name): \(error.localizedDescription)"
+                // A failed publish is retried on the next flush, and the error must
+                // outlive this call — a successful library save underneath it
+                // shouldn't wipe the one message that says a running app is about to
+                // miss this edit.
+                pendingWrapIDs.insert(id)
+                publishError = "Couldn't update \(wrap.name): \(error.localizedDescription)"
             }
         }
         do {
             try file.save(library, to: libraryURL)
-            lastError = nil
+            lastError = publishError
         } catch {
             lastError = "Couldn't save the library: \(error.localizedDescription)"
         }
@@ -155,6 +161,11 @@ final class WrapStore: ObservableObject {
     /// Queues the resolved configuration for every wrap in `wrapIDs` for the
     /// debounced flush, which publishes them to the shared runtime directory and
     /// saves the library together.
+    ///
+    /// Contract: publication is **deferred** to the debounced flush. A caller that
+    /// needs the runtime file on disk immediately (as `WrapExporter.build` does,
+    /// right before a freshly built bundle matters) publishes directly via
+    /// `publishRuntimeConfiguration(for:)` rather than relying on this path.
     ///
     /// Publication is debounced for the same reason the save is: the boost editor
     /// writes through on every keystroke, and each synchronous publish was an encode
