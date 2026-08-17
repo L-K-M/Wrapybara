@@ -118,8 +118,6 @@ struct WrapBehavior: Codable, Equatable {
 
     /// Enables the Develop menu and the Web Inspector for this app's web views.
     var isWebInspectorEnabled: Bool
-    /// Block cookies whose host doesn't match the page's.
-    var blocksThirdPartyCookies: Bool
 
     init(chrome: Chrome = .toolbar,
          showsAddressBar: Bool = false,
@@ -137,8 +135,7 @@ struct WrapBehavior: Codable, Equatable {
          advertisesHandoff: Bool = true,
          confirmsQuitWithOpenTabs: Bool = false,
          staysRunningWithoutWindows: Bool = false,
-         isWebInspectorEnabled: Bool = false,
-         blocksThirdPartyCookies: Bool = false) {
+         isWebInspectorEnabled: Bool = false) {
         self.chrome = chrome
         self.showsAddressBar = showsAddressBar
         self.allowsNativeTabs = allowsNativeTabs
@@ -156,7 +153,6 @@ struct WrapBehavior: Codable, Equatable {
         self.confirmsQuitWithOpenTabs = confirmsQuitWithOpenTabs
         self.staysRunningWithoutWindows = staysRunningWithoutWindows
         self.isWebInspectorEnabled = isWebInspectorEnabled
-        self.blocksThirdPartyCookies = blocksThirdPartyCookies
     }
 
     static let `default` = WrapBehavior()
@@ -193,7 +189,7 @@ struct WrapBehavior: Codable, Equatable {
         case externalLinks, additionalInAppHosts, userAgentMode, customUserAgent
         case showsBadgeFromTitle, forwardsWebNotifications, advertisesHandoff
         case confirmsQuitWithOpenTabs, staysRunningWithoutWindows
-        case isWebInspectorEnabled, blocksThirdPartyCookies
+        case isWebInspectorEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -215,6 +211,5 @@ struct WrapBehavior: Codable, Equatable {
         self.confirmsQuitWithOpenTabs = c.value(.confirmsQuitWithOpenTabs, or: false)
         self.staysRunningWithoutWindows = c.value(.staysRunningWithoutWindows, or: false)
         self.isWebInspectorEnabled = c.value(.isWebInspectorEnabled, or: false)
-        self.blocksThirdPartyCookies = c.value(.blocksThirdPartyCookies, or: false)
     }
 }
