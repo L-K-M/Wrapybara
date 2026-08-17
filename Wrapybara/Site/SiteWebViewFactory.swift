@@ -36,10 +36,10 @@ enum SiteWebViewFactory {
     ///
     /// `setValue(_:forKey:)` looks for `set<Key>:` then `_set<Key>:`, and these
     /// keys expose only the `_set` form. A key WebKit has retired raises an
-    /// uncatchable `NSUndefinedKeyException` from `setValue`, so this existence
-    /// check has to match exactly what `setValue` will call. The trailing colon
-    /// matters: a setter takes an argument, so its selector is
-    /// `_setHiddenPageDOMTimerThrottlingEnabled:`, not `...Enabled`.
+    /// uncatchable `NSUndefinedKeyException` from `setValue`, so probe for the
+    /// `_set` selector before calling it. The trailing colon matters: a setter
+    /// takes an argument, so its selector is `_setHiddenPageDOMTimerThrottlingEnabled:`,
+    /// not `...Enabled`.
     static func setterName(for key: String) -> String {
         "_set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
     }
@@ -50,8 +50,9 @@ enum SiteWebViewFactory {
     /// which is precisely the point. The keys are undocumented but have been
     /// stable since macOS 10.12 and are the same ones Playwright, Bun and MacPin
     /// set. A key WebKit has since retired is skipped rather than crashing every
-    /// wrap at launch — a retired key is exactly what `testEveryConfiguredKeyExistsOnThisWebKit`
-    /// is there to catch in CI, loudly, before a release.
+    /// wrap at launch — a retired key is exactly what
+    /// `testAllConfiguredThrottlingKeysAreDisabled` is there to catch in CI,
+    /// loudly, before a release.
     static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
         for key in hiddenPageThrottlingPreferenceKeys {
             guard configuration.preferences.responds(to: NSSelectorFromString(setterName(for: key))) else {
