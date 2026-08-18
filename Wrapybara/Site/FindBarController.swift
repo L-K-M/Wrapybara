@@ -25,6 +25,14 @@ final class FindBarController: NSObject {
     /// The last string searched, so ⌘G can repeat it without the bar being focused.
     private var lastQuery = ""
 
+    /// Whether ⌘G/⇧⌘G have something to repeat — used by menu validation, so a
+    /// repeat search works without reopening the bar, the way Safari's does.
+    /// `lastQuery` is the single source of truth: search-as-you-type keeps it in
+    /// step with the field.
+    var canRepeatFind: Bool {
+        !lastQuery.isEmpty
+    }
+
     /// Collapses the bar to zero height while hidden.
     ///
     /// `isHidden` alone is not enough: a hidden view still contributes its intrinsic
@@ -86,6 +94,10 @@ final class FindBarController: NSObject {
     // MARK: Searching
 
     @objc private func searchFieldChanged() {
+        // Keep `lastQuery` in step even when the field is cleared: ⌘G must not
+        // repeat a query the user deliberately erased (the empty-string early
+        // return in `find` would otherwise leave the old value in place).
+        lastQuery = searchField.stringValue
         find(forward: true, fromUserTyping: true)
     }
 
@@ -118,7 +130,11 @@ final class FindBarController: NSObject {
             // inventing an "n of m".
             self.statusLabel.stringValue = result.matchFound ? "" : "Not found"
             self.statusLabel.textColor = result.matchFound ? .secondaryLabelColor : .systemRed
-            if !result.matchFound { NSSound.beep() }
+            // Beep only on an explicit repeat action (⌘G/⇧⌘G, the chevron
+            // buttons) — everything typed or returned through the field arrives
+            // with `fromUserTyping` true, and beeping per keystroke while a word's
+            // early prefixes match nothing is what gets a find bar muted forever.
+            if !result.matchFound, !fromUserTyping { NSSound.beep() }
         }
     }
 
@@ -137,6 +153,8 @@ final class FindBarController: NSObject {
         searchField.placeholderString = "Find on page"
         searchField.target = self
         searchField.action = #selector(searchFieldChanged)
+        // Lets Esc close the bar — see the delegate extension below.
+        searchField.delegate = self
         // Search as you type, like Safari.
         searchField.sendsSearchStringImmediately = false
         searchField.sendsWholeSearchString = false
@@ -193,5 +211,22 @@ final class FindBarController: NSObject {
         button.toolTip = tooltip
         button.target = self
         button.action = action
+    }
+}
+
+// MARK: - Search field delegate
+
+extension FindBarController: NSSearchFieldDelegate {
+
+    /// Esc closes the bar. Scoped to the field on purpose: a global Esc would steal
+    /// the key from the page whenever the bar happened to be open.
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy command: Selector) -> Bool {
+        guard command == #selector(NSResponder.cancelOperation(_:)) else { return false }
+        // Mid-IME composition, Esc belongs to the input method (it cancels the
+        // composition); the field editor normally consumes it first, but don't
+        // close the bar out from under an active marked-text session either way.
+        guard !textView.hasMarkedText() else { return false }
+        hide()
+        return true
     }
 }

@@ -313,7 +313,9 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         case #selector(stopLoading(_:)):
             return webController.webView.isLoading
         case #selector(findNext(_:)), #selector(findPrevious(_:)):
-            return findBar.isVisible
+            // A repeat search works with the bar hidden too, the way Safari's ⌘G
+            // does — the field's last query is the one that repeats.
+            return findBar.isVisible || findBar.canRepeatFind
         case #selector(sharePage(_:)), #selector(copyPageAddress(_:)), #selector(printPage(_:)):
             return webController.webView.url != nil
         default:
