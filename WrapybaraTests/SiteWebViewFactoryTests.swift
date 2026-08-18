@@ -2,10 +2,12 @@ import XCTest
 import WebKit
 @testable import Wrapybara
 
-/// The one testable part of the web-view factory: that a wrap's web view opts out
-/// of macOS's hidden-page throttling, so a covered window doesn't freeze a
-/// streaming page. The keys are undocumented WebKit preferences, so the test pins
-/// both that they're set and that the keys are still the ones that exist.
+/// The testable part of the web-view factory: that a wrap's web view opts out of
+/// everything macOS does to a page whose window it thinks nobody is looking at —
+/// hidden-page timer throttling, process suppression, and (the one that actually
+/// stops a streaming chat) treating a covered window as a hidden page. All of it
+/// rides undocumented WebKit keys, so these tests pin both that they're set and
+/// that the keys are still ones WebKit knows.
 final class SiteWebViewFactoryTests: XCTestCase {
 
     /// A message-handler stub, so `makeWebView` has something to register.
@@ -25,7 +27,7 @@ final class SiteWebViewFactoryTests: XCTestCase {
     /// execution, because `XCTAssertTrue` only records a failure and would let the
     /// read through.
     private func assertThrottlingDisabled(_ key: String, on preferences: WKPreferences) {
-        guard SiteWebViewFactory.respondsToThrottlingSetter(for: key, on: preferences) else {
+        guard SiteWebViewFactory.respondsToSetter(for: key, on: preferences) else {
             XCTFail("\(key) is no longer a known WKPreferences key")
             return
         }
@@ -54,5 +56,25 @@ final class SiteWebViewFactoryTests: XCTestCase {
         for key in SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys {
             assertThrottlingDisabled(key, on: webView.configuration.preferences)
         }
+    }
+
+    /// The occlusion opt-out is the one that keeps a *covered* window's page in the
+    /// visible state, and so keeps `requestAnimationFrame`, CSS animation and the
+    /// page's own streaming code running rather than firing `visibilitychange` at
+    /// it. Read off a real web view, because that's where the key lives — it is a
+    /// `WKWebView` property, not a preference, so nothing in the configuration
+    /// would catch its loss.
+    func testMakeWebViewKeepsThePageVisibleWhileTheWindowIsCovered() {
+        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
+        let key = SiteWebViewFactory.windowOcclusionDetectionKey
+        // Same order as `assertThrottlingDisabled`: probe before reading, because
+        // `value(forKey:)` on a retired key raises uncatchably, and halt rather than
+        // record — `XCTFail` alone would let the read through.
+        guard SiteWebViewFactory.respondsToSetter(for: key, on: webView) else {
+            XCTFail("\(key) is no longer a known WKWebView key")
+            return
+        }
+        XCTAssertFalse(webView.value(forKey: key) as? Bool ?? true,
+                       "a covered window must not put its page into the hidden state")
     }
 }

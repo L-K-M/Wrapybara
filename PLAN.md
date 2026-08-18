@@ -277,24 +277,51 @@ Not one feature — the absence of twenty small failures.
   none to embedders — off by default, because replacing a page global is intrusive.
 - **Sessions are per app.** Each wrap has its own bundle identifier and therefore
   its own WebKit data directory. Two wraps of one site hold two different logins.
-- **A covered window keeps the page running.** macOS throttles a hidden page's DOM
-  timers to about once a second and, after a delay, suspends the WebContent
-  process; a streaming chat then freezes the moment its window is covered or the
-  display sleeps. A wrap is a single-tab app, not a background browser tab, so the
-  runtime opts out of that throttling (`SiteWebViewFactory`). The cost is battery
-  when a wrap is hidden; that is the point. The opt-out rides undocumented
-  `WKPreferences` keys set via KVC — fine under Developer ID distribution, but
-  re-review before any Mac App Store submission. Release check: open a streaming
-  page in a wrap, cover or miniaturise the window for a minute, and confirm the
-  stream is still live; also leave it hidden 5+ minutes with the display asleep
-  and confirm a timer-driven page still advances on wake — the unit tests pin the
-  preference keys, not WebKit's behaviour or App Nap. A key retired upstream only
-  shows up on the macOS that retired it, so run the suite on the oldest supported
-  macOS and a current beta before a release. The keys only lift timer throttling
-  and WebKit's own suppression: a page that pauses on `visibilitychange` or
-  drives updates via `requestAnimationFrame` still freezes when covered, by
-  spec — so run the check with a site users actually wrap, not only a
-  timer-driven test page.
+- **A covered window keeps the page running.** macOS does three separate things to
+  a page whose window it thinks nobody is looking at, and a wrap has to opt out of
+  all three or a streaming chat freezes the moment its window is covered. All of it
+  lives in `SiteWebViewFactory`.
+
+  1. **DOM timers** are throttled to about once a second, and after a delay the
+     WebContent process is suspended outright. Three undocumented `WKPreferences`
+     keys turn that off.
+  2. **The page is marked hidden.** This is the one that actually stalls a modern
+     site, and the one the preference keys never touched. WebKit decides visibility
+     in `PageClientImpl::isViewVisible`, which returns false when the window's
+     occlusion state loses `NSWindowOcclusionStateVisible` — another app's window
+     covering the wrap, a Space switch, the display going to sleep. That runs
+     `Page::setIsVisibleInternal(false)` in the content process, which suspends
+     `requestAnimationFrame`, suspends the CSS and SVG animation timelines, and
+     fires `visibilitychange` with `document.hidden` true. A chat page then stops
+     painting *and* is invited to tear its own stream down — which is why the
+     symptom was "the spinner stopped and the reply never arrived, and only a
+     reload brought it back". `WKWebView`'s `_windowOcclusionDetectionEnabled`
+     (false) drops the occlusion term from that test, so a merely covered window
+     keeps a visible page.
+  3. **App Nap** on the app process, held off with a `ProcessInfo` activity — see
+     the bullet above.
+
+  The cost is battery when a wrap is hidden; that is the point. Both opt-outs ride
+  undocumented WebKit keys set via KVC — fine under Developer ID distribution, but
+  re-review before any Mac App Store submission.
+
+  **What is still not covered, on purpose:** a *miniaturised* window, or one hidden
+  with ⌘H. Both make `NSWindow.isVisible` false, which WebKit checks before it ever
+  consults occlusion, and no embedder switch reaches that. Those pages stop
+  painting, but with timers unthrottled, the process unsuppressed and App Nap held
+  off they keep reading their stream, so they catch up when the window comes back
+  rather than needing a reload. A site that pauses itself on `visibilitychange` will
+  still pause in those two states — same as it would in Safari.
+
+  Release check: open a streaming page in a wrap, cover the window with another app
+  for a minute, and confirm the reply is still arriving *and* still animating —
+  cover it, don't just click away, since an uncovered background window was never
+  affected. Repeat miniaturised and confirm the page catches up on restore. Also
+  leave it hidden 5+ minutes with the display asleep and confirm a timer-driven page
+  still advances on wake. The unit tests pin the keys, not WebKit's behaviour or App
+  Nap. A key retired upstream only shows up on the macOS that retired it, so run the
+  suite on the oldest supported macOS and a current beta before a release — and run
+  the check with a site users actually wrap, not only a timer-driven test page.
 
 ---
 

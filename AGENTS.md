@@ -131,6 +131,17 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   pages freeze mid-stream — the "app stopped updating but the server kept running"
   bug. `.userInitiatedAllowingIdleSystemSleep` only; nothing that pins the display
   or system awake.
+- **A covered window must not mark its page hidden**
+  (`SiteWebViewFactory.keepPageVisibleWhileWindowIsCovered`). The App Nap activity
+  and the three `WKPreferences` throttling keys are not enough on their own: WebKit
+  computes visibility in `PageClientImpl::isViewVisible`, and losing
+  `NSWindowOcclusionStateVisible` alone suspends `requestAnimationFrame`, suspends
+  the CSS/SVG animation timelines and fires `visibilitychange` — which is the
+  *other* half of the same bug, and the half that makes a chat page need a reload
+  rather than just catch up. Setting `WKWebView`'s
+  `_windowOcclusionDetectionEnabled` false is what removes it. Miniaturised and ⌘H
+  windows are out of reach (`NSWindow.isVisible` is checked first) and are meant to
+  be; see `PLAN.md`.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
 
@@ -149,7 +160,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   ⌘L, ⌘P; quitting and reopening (session restore); editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
-  while its window is covered or miniaturised; a failed navigation with an
+  *and animating* while another app's window covers it, and that catches up without
+  a reload after being miniaturised; a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this
