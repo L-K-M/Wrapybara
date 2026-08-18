@@ -32,7 +32,9 @@ that site — and behaves like something a person wrote on purpose.
 - **Native tabs.** ⌘T, the AppKit tab bar, tab overview, Merge All Windows.
 - **Real downloads.** Into `~/Downloads`, with Dock progress and a Finder reveal.
   A PDF export link downloads a PDF instead of doing nothing.
-- **Reopens where you left off** — page, scroll position and unsubmitted form text.
+- **Reopens where you left off** — page, scroll position and unsubmitted form
+  text, and each window back on its own screen, at its own size, full screen if
+  that's where it was quit.
 - **Links go where you'd expect.** Links off the site open in your browser; login
   redirects and script navigation stay in the app, so signing in through an identity
   provider doesn't dump you into Safari halfway.

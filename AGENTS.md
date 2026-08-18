@@ -91,7 +91,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
 - **Keep the decidable parts pure.** `BoostMatcher`, `BoostCSSGenerator`,
   `NavigationPolicy`, `BadgeFromTitle`, `AppNameSanitizer`,
   `BundleIdentifierGenerator`, `InfoPlistBuilder`, `SiteMarkupParser`,
-  `URLNormalizer`, `IconCandidate.ranked` and `PlatePattern` take values and
+  `URLNormalizer`, `IconCandidate.ranked`, `PlatePattern` and
+  `WindowGeometry.resolvedFrame` take values and
   return values. That's
   what makes the whole feature set testable without a web view, and it is the single
   most important convention here. Don't reach for `NSWorkspace` or `Bundle.main` from
@@ -159,7 +160,12 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   `BoostMatcher.clearCache()` in `setUp`.
 - Manually verify: building into `/Applications` and `~/Applications`; a wrap of a
   site with SSO on another domain; a `target="_blank"` link; a PDF download; ⌘F, ⌘T,
-  ⌘L, ⌘P; quitting and reopening (session restore); a wrap with *No chrome* — the
+  ⌘L, ⌘P; quitting and reopening — the page *and* the window come back: frame,
+  screen and full screen, including a quit in full screen (the window must reopen
+  at its last regular size and then re-enter full screen) and a relaunch with the
+  display the window was on unplugged (the window must land wholly on the screen
+  it overlapped most, visible frame honoured), and both with several windows on
+  different displays; a wrap with *No chrome* — the
   window must drag from the top strip (including from an unfocused state),
   double-click there must follow the system title-bar setting, and no document
   proxy icon may appear next to the title; editing a boost while the built

@@ -74,12 +74,15 @@ final class PlatePatternTests: XCTestCase {
                                (column < 4) == (row < 4))
             }
         }
-        // Corduroy: every second row is the row above shifted one column left —
-        // that's the wobble that makes it wale rather than stripe.
+        // Corduroy: every second row is the row above shifted one column right —
+        // that's the wobble that makes it wale rather than stripe. (The shipped
+        // tile wobbles right; a left wobble is the same idea mirrored, and the
+        // assertion originally claimed it. The art is what renders, so the test
+        // follows the art.)
         for row in 0 ..< PlatePattern.edge where row % 2 == 1 {
             for column in 0 ..< PlatePattern.edge {
                 XCTAssertEqual(PlatePattern.corduroy.bit(column: column, row: row),
-                               PlatePattern.corduroy.bit(column: column + 1, row: row - 1))
+                               PlatePattern.corduroy.bit(column: column - 1, row: row - 1))
             }
         }
         // Pyramids: a solid baseline, and nothing above it at the gap columns.

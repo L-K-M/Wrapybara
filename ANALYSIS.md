@@ -53,15 +53,17 @@ rejects a real site. **Fix:** detect non-ASCII in the host part and pre-encode
 `CFStringTransform`). **Verify the exact macOS 13 Foundation behaviour first** and add
 table tests to `URLNormalizerTests` alongside.
 
-### 🐛 P2 — every new window opens exactly on top of the last
-`SiteWindowController.makeWindow` gives every window the same
-`setFrameAutosaveName("SiteWindow")`. Separate (non-tabbed) windows all restore to one
-identical frame and stack — no cascading, and the autosave key is fought over by every
-window. **Fix:** only the first window of a launch uses the autosave name; subsequent
-windows cascade (`window.cascadeTopLeft(from:)`). While there: a session saved with N
-*separate* windows is restored as N tabs of one window (`restoreSession` passes
+### 🐛 P2 — brand-new windows stack; a restored session keeps no tab shape
+`SiteWindowController.makeWindow` centers every window, so ⌘N twice stacks two
+identical frames — no cascading. (The old shared `setFrameAutosaveName("SiteWindow")`
+— fought over by every window — is gone: window placement is now restored per window
+from `SessionStore`, with frame, screen and full-screen state; see `WindowGeometry`.)
+**Fix:** cascade brand-new windows (`window.cascadeTopLeft(from:)`), keeping
+restored windows at their remembered frames. A session saved with N *separate*
+windows is still restored as N tabs of one window (`restoreSession` passes
 `asTabOf: first` for every window after the first) — restoring the separate-window
-shape (or recording it) belongs in the same change.
+shape (or recording it) belongs in the same change, and `SessionStore.WindowState`
+now has per-window geometry to hang it on.
 
 ### 🐛 P2 — preview downloads surface in the *builder's* Dock progress
 `BoostPreviewController` sets `downloads.completion = .doNothing`, but
@@ -71,12 +73,13 @@ and drops files in `~/Downloads` with no reveal. **Fix:** give `DownloadCoordina
 a quiet mode (no publish, no Finder reveal, or cancel outright) and use it for the
 preview. *Note: #15 touches `DownloadCoordinator`; sequence after it.*
 
-### 🐛 P3 — session state saved only at quit
-`SiteAppDelegate.saveSession()` runs in `applicationWillTerminate`. A crash (or
-force-quit, or logout timeout) loses everything since launch, which quietly defeats
-"reopen where I left off" for exactly the sessions that mattered. **Fix:** autosave
-debounced off `onPageChanged` (e.g. 5 s after a change) — and do it together with the
-SessionStore relocation below (⚡), which is what makes frequent saves cheap.
+### 🐛 P3 — session state saved only at quit (and at last-window close)
+`SiteAppDelegate.saveSession()` runs in `applicationWillTerminate` and when the last
+window closes. A crash (or force-quit, or logout timeout) loses everything since the
+last of those, which quietly defeats "reopen where I left off" for exactly the
+sessions that mattered. **Fix:** autosave debounced off `onPageChanged` (e.g. 5 s
+after a change) — and do it together with the SessionStore relocation below (⚡),
+which is what makes frequent saves cheap.
 
 ### 🐛 P3 — find is hard-wired case-insensitive
 `FindBarController.find` sets `configuration.caseSensitive = false` always. Safari

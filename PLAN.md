@@ -281,7 +281,17 @@ Not one feature — the absence of twenty small failures.
   it's done. Anything WebKit can't display becomes a download rather than a page of
   binary garbage.
 - **Session.** `WKWebView.interactionState` — the whole back-forward list, scroll
-  offset and unsubmitted form state — so reopening really does put you back.
+  offset and unsubmitted form state — plus each window's frame, screen and
+  full-screen state, so reopening really does put you back: on the display it was
+  on, at the size it was, full screen if that's where it was quit. Not
+  `NSWindowRestoration` and not frame autosave — the first is switched off by the
+  system's "Close windows when quitting" setting and the second remembers one
+  rectangle for the whole app — but the wrap's own session, in its own
+  `UserDefaults`, one entry per window. A window whose display no longer exists at
+  relaunch comes back on the screen its saved frame overlapped the most, pulled
+  inside that screen's visible frame; a window quit full screen reopens at its
+  last *regular* size and then goes full screen again, rather than inheriting a
+  screen-sized rectangle nobody chose.
 - **Link routing.** Redirects and script-driven navigation always stay in the app;
   only *user-initiated* navigation outside the wrap's hosts leaves. Extra in-app
   hosts are configurable, which is the fix for an SSO hop on another domain.
