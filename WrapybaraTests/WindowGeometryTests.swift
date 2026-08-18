@@ -61,14 +61,19 @@ final class WindowGeometryTests: XCTestCase {
                                       isFullScreen: false)
         let screens = [screen(0, 0, 1920, 1080), screen(1920, 0, 1920, 1080)]
         XCTAssertEqual(geometry.resolvedFrame(on: screens), rect(100, 100, 800, 600))
+        // Matching must be by frame value; array order is incidental.
+        XCTAssertEqual(geometry.resolvedFrame(on: Array(screens.reversed())),
+                       rect(100, 100, 800, 600))
     }
 
     func testMissingScreenMovesTheWindowToTheScreenItOverlappedMost() {
         // Saved on a display that no longer exists, straddling (in dead-layout
         // coordinates) what are now two displays. It overlaps the right-hand one
-        // more, and comes back fully inside that one's *visible* frame.
+        // more, and comes back fully inside that one's *visible* frame. The saved
+        // screen is wide enough to actually contain the saved frame — a real
+        // window's frame always fits its own screen.
         let geometry = WindowGeometry(frame: rect(1200, 100, 600, 500),
-                                      screenFrame: rect(0, 0, 1000, 1000),
+                                      screenFrame: rect(0, 0, 2000, 1000),
                                       isFullScreen: false)
         let screens = [screen(0, 0, 1440, 900), screen(1440, 0, 1920, 1080)]
         XCTAssertEqual(geometry.resolvedFrame(on: screens), rect(1440, 100, 600, 500))
