@@ -47,6 +47,10 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         buildContentView()
         if behavior.chrome.showsToolbar { installToolbar() }
         window.title = configuration.wrap.name
+        // A window nobody has moved yet is "at" its centered default; that is what
+        // gets remembered until a real frame replaces it.
+        lastRegularFrame = window.frame
+        lastRegularScreenFrame = window.screen?.frame ?? .zero
     }
 
     @available(*, unavailable)
@@ -70,11 +74,14 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         // to prefer tabs — which is the setting they already made for every other app.
         window.tabbingIdentifier = wrap.bundleIdentifier
         window.tabbingMode = wrap.behavior.allowsNativeTabs ? .automatic : .disallowed
-        // Restore the frame per wrap rather than per window, so the first window of a
-        // relaunch opens where the last one was.
+        // `center()` is only the starting point; anything remembered from a previous
+        // run is applied by `restore(geometry:)` once the window exists. Not
+        // `setFrameAutosaveName`: it remembers one rectangle for the whole app (a
+        // shared name can only be claimed by one window at a time), it knows nothing
+        // about full screen, and it can't be validated against the screens that exist
+        // at relaunch. Placement is restored from `SessionStore` instead — per
+        // window, screen-aware, with the full-screen state.
         window.center()
-        // After `center()`, so a previously saved frame wins over the default position.
-        window.setFrameAutosaveName("SiteWindow")
         return window
     }
 
@@ -149,6 +156,64 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
 
     func apply(_ configuration: WrapConfiguration) {
         webController.apply(configuration)
+    }
+
+    // MARK: Window placement
+
+    /// The frame to bring this window back at: the last one it had as a regular
+    /// window. A window quit in full screen must not come back screen-sized — that
+    /// rectangle was chosen by no one — so the regular frame is remembered on its
+    /// own and updated only outside full-screen transitions.
+    private var lastRegularFrame: NSRect = .zero
+    /// The screen `lastRegularFrame` was on, so a relaunch can tell "the display
+    /// layout is the same as when this was saved" from "the display this window
+    /// lived on is gone".
+    private var lastRegularScreenFrame: NSRect = .zero
+    /// True from entering or leaving full screen until the transition completes,
+    /// so animation frames can't be mistaken for a deliberate resize.
+    private var isFullScreenTransition = false
+
+    /// Where this window was when it was last worth remembering.
+    var savedGeometry: WindowGeometry {
+        WindowGeometry(frame: lastRegularFrame,
+                       screenFrame: lastRegularScreenFrame,
+                       isFullScreen: window?.styleMask.contains(.fullScreenWindowMask) ?? false)
+    }
+
+    /// Puts the window back where a previous run left it, as close as the screens
+    /// that exist now allow. Called before the window is shown, so the restore is
+    /// never visible as a jump from the centered default.
+    func restore(geometry: WindowGeometry) {
+        guard let window, geometry.isUsable else { return }
+        let screens = NSScreen.screens.map(WindowGeometry.Screen.init(screen:))
+        let frame = geometry.resolvedFrame(on: screens)
+        window.setFrame(frame, display: false)
+        lastRegularFrame = frame
+        // Taken from the screens rather than `window.screen`, which isn't settled
+        // for a window that has never been shown.
+        lastRegularScreenFrame = (screens.first { $0.frame.intersects(frame) }
+            ?? screens.first)?.frame ?? .zero
+    }
+
+    /// Puts the window back into full screen, for a window that was quit there.
+    ///
+    /// Called after the window and its tab group are on screen, and one run-loop
+    /// turn later: entering full screen in the same turn as a window's first
+    /// appearance races the frame that was just restored.
+    func reenterFullScreen() {
+        guard let window, !window.styleMask.contains(.fullScreenWindowMask) else { return }
+        DispatchQueue.main.async {
+            window.toggleFullScreen(nil)
+        }
+    }
+
+    /// Records the current frame as the one to bring back, unless the window is in
+    /// full screen or animating into or out of it.
+    private func rememberRegularFrame() {
+        guard let window, !isFullScreenTransition,
+              !window.styleMask.contains(.fullScreenWindowMask) else { return }
+        lastRegularFrame = window.frame
+        if let screen = window.screen { lastRegularScreenFrame = screen.frame }
     }
 
     // MARK: Actions
@@ -428,6 +493,32 @@ extension SiteWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         browsingActivity?.invalidate()
         browsingActivity = nil
+    }
+
+    func windowDidMove(_ notification: Notification) { rememberRegularFrame() }
+
+    func windowDidResize(_ notification: Notification) { rememberRegularFrame() }
+
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        // The frame as the window leaves the regular world is the one to bring it
+        // back to, captured before the transition can start rewriting it — however
+        // the style mask reads by now.
+        if let window {
+            lastRegularFrame = window.frame
+            if let screen = window.screen { lastRegularScreenFrame = screen.frame }
+        }
+        isFullScreenTransition = true
+    }
+
+    func windowWillExitFullScreen(_ notification: Notification) {
+        isFullScreenTransition = true
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        isFullScreenTransition = false
+        // The exit animation can end after the last `windowDidResize`; capture the
+        // restored regular frame now rather than hoping one more event follows.
+        rememberRegularFrame()
     }
 }
 

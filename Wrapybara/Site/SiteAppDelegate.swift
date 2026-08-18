@@ -15,6 +15,17 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     private lazy var watcher = ConfigurationWatcher(directory: AppSupport.runtimeDirectory)
     private var settingsWindow: SiteSettingsWindowController?
 
+    /// Where the last window to close was — so a stay-resident wrap reopened from the
+    /// Dock, or relaunched after a quit that saw no window open, puts a window back
+    /// where that one was rather than starting over centered.
+    private var lastClosedWindowGeometry: WindowGeometry?
+
+    /// Set the moment termination is agreed, before any window can close as part of
+    /// it: the close-time bookkeeping in `makeWindowController` must not fire during
+    /// the quit sequence and overwrite the full session that
+    /// `applicationWillTerminate` is about to save.
+    private var isTerminating = false
+
     /// The `NSProcessInfo` activity that keeps App Nap away while this app has
     /// something live. See `updateAppNapExemption`.
     private var appNapExemption: NSObjectProtocol?
@@ -46,8 +57,12 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     /// Clicking the Dock icon with no window open reopens one, rather than doing
     /// nothing — the behaviour every Mac app has.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if windowControllers.isEmpty { openWindow(url: nil, asTabOf: nil) }
-        else { windowControllers.first?.showWindow(nil) }
+        if windowControllers.isEmpty {
+            // Back where the last window was, if this run knows it.
+            openWindow(url: nil, asTabOf: nil, geometry: lastClosedWindowGeometry)
+        } else {
+            windowControllers.first?.showWindow(nil)
+        }
         return true
     }
 
@@ -90,6 +105,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        isTerminating = true
         // A download in flight is the one thing worth interrupting a quit for; losing a
         // half-finished file silently is the kind of thing that makes an app feel cheap.
         if downloads.activeCount > 0 {
@@ -100,7 +116,10 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             alert.informativeText = "Quitting \(wrap.name) now will cancel them."
             alert.addButton(withTitle: "Cancel Downloads and Quit")
             alert.addButton(withTitle: "Don't Quit")
-            if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
+            if alert.runModal() != .alertFirstButtonReturn {
+                isTerminating = false
+                return .terminateCancel
+            }
             downloads.cancelAll()
         }
 
@@ -110,7 +129,10 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             alert.informativeText = "\(windowControllers.count) windows are open."
             alert.addButton(withTitle: "Quit")
             alert.addButton(withTitle: "Cancel")
-            if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
+            if alert.runModal() != .alertFirstButtonReturn {
+                isTerminating = false
+                return .terminateCancel
+            }
         }
         return .terminateNow
     }
@@ -155,16 +177,20 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
         return windowControllers.first { $0.window === keyWindow }
     }
 
-    /// Creates a window (or a tab of `parent`) and loads `url`, or the home page.
+    /// Creates a window (or a tab of `parent`), puts it at `geometry` when there is
+    /// one to put it at, and loads `url`, or the home page.
     @discardableResult
-    private func openWindow(url: URL?, asTabOf parent: SiteWindowController?) -> SiteWindowController {
+    private func openWindow(url: URL?, asTabOf parent: SiteWindowController?,
+                            geometry: WindowGeometry? = nil) -> SiteWindowController {
         let controller = makeWindowController()
+        if let geometry { controller.restore(geometry: geometry) }
         if let url {
             controller.load(url)
         } else {
             controller.loadHome()
         }
         present(controller, asTabOf: parent)
+        if geometry?.isFullScreen == true { controller.reenterFullScreen() }
         return controller
     }
 
@@ -200,10 +226,22 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
             forName: NSWindow.willCloseNotification,
             object: controller.window, queue: .main) { [weak self, weak controller] _ in
                 if let token { NotificationCenter.default.removeObserver(token) }
-                guard let self, let controller else { return }
+                // During termination the windows close as part of quitting; the
+                // bookkeeping below is for an app that is going to keep running, and
+                // running it mid-quit would replace the full session
+                // `applicationWillTerminate` saves moments later.
+                guard let self, let controller, !self.isTerminating else { return }
+                let closingGeometry = controller.savedGeometry
                 self.windowControllers.removeAll { $0 === controller }
                 self.updateBadge()
                 self.updateAppNapExemption()
+                // The last window to close is where the next one should open — for a
+                // Dock reopen now, and for a relaunch after a quit that never saw a
+                // window open again.
+                if self.windowControllers.isEmpty {
+                    self.lastClosedWindowGeometry = closingGeometry
+                    self.saveSession()
+                }
             }
         return controller
     }
@@ -219,29 +257,80 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Session
 
+    /// Reopens the windows of the last run: pages back where they were, and the
+    /// windows themselves back where they were — frame, screen and full screen.
     private func restoreSession() {
-        let states = wrap.behavior.restoresSession
-            ? SessionStore.load(wrapID: wrap.id)
-            : []
+        let states = SessionStore.load(wrapID: wrap.id)
         guard !states.isEmpty else {
             openWindow(url: nil, asTabOf: nil)
+            return
+        }
+        guard wrap.behavior.restoresSession else {
+            // Page restore off: one fresh window — but still at the remembered place,
+            // which is the half of "reopen where it was" every Mac app owes even
+            // when it deliberately forgets its pages.
+            openWindow(url: nil, asTabOf: nil, geometry: states.first?.geometry)
             return
         }
         var first: SiteWindowController?
         for state in states {
             let controller = makeWindowController()
-            controller.restoreOrLoadHome(interactionState: state)
+            controller.restoreOrLoadHome(interactionState: state.interactionState)
+            if let geometry = state.geometry { controller.restore(geometry: geometry) }
             present(controller, asTabOf: first)
             if first == nil { first = controller }
         }
+        restoreFullScreen(from: states)
     }
 
     private func saveSession() {
         guard wrap.behavior.restoresSession else {
-            SessionStore.clear(wrapID: wrap.id)
+            // No pages back — but the window's place is still worth remembering, and
+            // the front window's (or the last one to close's) is the place to keep.
+            let geometry = frontWindowController?.savedGeometry
+                ?? windowControllers.first?.savedGeometry
+                ?? lastClosedWindowGeometry
+            if let geometry {
+                SessionStore.save([.init(geometry: geometry, interactionState: nil)],
+                                  wrapID: wrap.id)
+            } else {
+                SessionStore.clear(wrapID: wrap.id)
+            }
             return
         }
-        SessionStore.save(windowControllers.compactMap(\.interactionState), wrapID: wrap.id)
+        if windowControllers.isEmpty {
+            // Quit (or idled) with no windows open — a stay-resident wrap: keep the
+            // place of the last window to close rather than forgetting everything.
+            if let lastClosedWindowGeometry {
+                SessionStore.save([.init(geometry: lastClosedWindowGeometry,
+                                         interactionState: nil)], wrapID: wrap.id)
+            } else {
+                SessionStore.clear(wrapID: wrap.id)
+            }
+            return
+        }
+        SessionStore.save(windowControllers.map {
+            SessionStore.WindowState(geometry: $0.savedGeometry,
+                                     interactionState: $0.interactionState)
+        }, wrapID: wrap.id)
+    }
+
+    /// Full screen is remembered per window — and, for a tab group, per group: a
+    /// group in full screen is all in full screen, and a group has one frame. So
+    /// with tabs on, the first window's state decides for the group it now leads;
+    /// with tabs off, every window is its own group on its own screen and restores
+    /// its own state.
+    private func restoreFullScreen(from states: [SessionStore.WindowState]) {
+        if wrap.behavior.allowsNativeTabs {
+            if states.first?.geometry?.isFullScreen == true {
+                windowControllers.first?.reenterFullScreen()
+            }
+        } else {
+            for (controller, state) in zip(windowControllers, states)
+            where state.geometry?.isFullScreen == true {
+                controller.reenterFullScreen()
+            }
+        }
     }
 
     // MARK: Live configuration

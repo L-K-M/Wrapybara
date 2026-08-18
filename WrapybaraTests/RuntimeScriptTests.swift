@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Wrapybara
 
@@ -200,39 +201,124 @@ final class RuntimeScriptTests: XCTestCase {
 
     // MARK: Session store
 
-    func testSessionRoundTrips() {
-        let id = UUID()
-        let defaults = UserDefaults(suiteName: "WrapybaraTests.\(id.uuidString)")!
-        defer { defaults.removeSuite(named: "WrapybaraTests.\(id.uuidString)") }
+    /// A fresh `UserDefaults` suite per test, so nothing leaks between them.
+    private func makeDefaults() -> (defaults: UserDefaults, suite: String) {
+        let suite = "WrapybaraTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        return (defaults, suite)
+    }
 
-        SessionStore.save([Data("a".utf8), Data("b".utf8)], wrapID: id, defaults: defaults)
-        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults),
-                       [Data("a".utf8), Data("b".utf8)])
+    private func geometry(x: Double = 10, y: Double = 20,
+                          screen: NSRect = NSRect(x: 0, y: 0, width: 1920, height: 1080))
+        -> WindowGeometry {
+        WindowGeometry(frame: NSRect(x: x, y: y, width: 800, height: 600),
+                       screenFrame: screen, isFullScreen: false)
+    }
+
+    func testSessionRoundTrips() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
+
+        let states: [SessionStore.WindowState] = [
+            .init(geometry: geometry(), interactionState: Data("a".utf8)),
+            .init(geometry: nil, interactionState: Data("b".utf8)),
+        ]
+        SessionStore.save(states, wrapID: id, defaults: defaults)
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults), states)
 
         SessionStore.clear(wrapID: id, defaults: defaults)
         XCTAssertTrue(SessionStore.load(wrapID: id, defaults: defaults).isEmpty)
     }
 
     func testSessionDropsEmptyAndOversizedStates() {
-        let id = UUID()
-        let suite = "WrapybaraTests.\(id.uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let (defaults, suite) = makeDefaults()
         defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
 
         let huge = Data(count: SessionStore.maximumStateBytes + 1)
-        SessionStore.save([Data(), huge, Data("ok".utf8)], wrapID: id, defaults: defaults)
-        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults), [Data("ok".utf8)])
+        SessionStore.save([.init(geometry: nil, interactionState: Data()),
+                           .init(geometry: nil, interactionState: huge),
+                           .init(geometry: nil, interactionState: Data("ok".utf8))],
+                          wrapID: id, defaults: defaults)
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults),
+                       [.init(geometry: nil, interactionState: Data("ok".utf8))])
     }
 
     func testSessionCapsWindowCount() {
-        let id = UUID()
-        let suite = "WrapybaraTests.\(id.uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let (defaults, suite) = makeDefaults()
         defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
 
         // Restoring forty windows would spawn forty web content processes at launch.
-        let many = (0..<40).map { Data("\($0)".utf8) }
+        let many = (0..<40).map {
+            SessionStore.WindowState(geometry: nil, interactionState: Data("\($0)".utf8))
+        }
         SessionStore.save(many, wrapID: id, defaults: defaults)
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults).count,
+                       SessionStore.maximumWindows)
+    }
+
+    func testSessionKeepsAWindowWithOnlyGeometryOrOnlyPages() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
+
+        // A geometry-only window is a session saved with page restore off; a
+        // pages-only window is one saved by an older runtime. A window with neither
+        // is nothing to reopen.
+        let place = geometry()
+        let pages = Data("pages".utf8)
+        SessionStore.save([.init(geometry: place, interactionState: nil),
+                           .init(geometry: nil, interactionState: pages),
+                           .init(geometry: nil, interactionState: nil)],
+                          wrapID: id, defaults: defaults)
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults),
+                       [.init(geometry: place, interactionState: nil),
+                        .init(geometry: nil, interactionState: pages)])
+    }
+
+    func testSessionDropsGeometryWithoutAFrame() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
+
+        let zeroed = WindowGeometry(frame: .zero, screenFrame: .zero, isFullScreen: false)
+        XCTAssertTrue(SessionStore.load(wrapID: id, defaults: defaults).isEmpty)
+        SessionStore.save([.init(geometry: zeroed, interactionState: nil)],
+                          wrapID: id, defaults: defaults)
+        XCTAssertTrue(SessionStore.load(wrapID: id, defaults: defaults).isEmpty)
+    }
+
+    func testLegacySessionIsReadAndRetired() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
+
+        // What the previous runtime wrote: bare interaction blobs under the old key.
+        let legacyKey = "SessionStore.\(id.uuidString).windows"
+        let blob = Data("legacy".utf8)
+        defaults.set([blob], forKey: legacyKey)
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults),
+                       [.init(geometry: nil, interactionState: blob)])
+
+        // Saving the new format retires the old key, so the two can't drift apart —
+        // an older runtime relaunching must not resurrect stale pages over the
+        // newer session.
+        SessionStore.save([.init(geometry: geometry(), interactionState: nil)],
+                          wrapID: id, defaults: defaults)
+        XCTAssertNil(defaults.data(forKey: legacyKey))
+        XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults).count, 1)
+    }
+
+    func testSessionCapAppliesToLegacySessionsToo() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removeSuite(named: suite) }
+        let id = UUID()
+
+        let legacyKey = "SessionStore.\(id.uuidString).windows"
+        let many = (0..<40).map { Data("\($0)".utf8) }
+        defaults.set(many, forKey: legacyKey)
         XCTAssertEqual(SessionStore.load(wrapID: id, defaults: defaults).count,
                        SessionStore.maximumWindows)
     }
