@@ -258,8 +258,13 @@ final class CodableModelTests: XCTestCase {
     func testIconWrittenBeforePlatesDecodesToAutomatic() throws {
         // Libraries and baked-in configs from before plates were editable have no
         // `plate` key; nil *is* the automatic behaviour they used to get.
+        // `##` delimiters, not `#`: the JSON carries a hex colour, and a value that
+        // starts with `#` puts a `"#` — the `#"…"#` terminator — inside a
+        // single-hash raw string. This line broke CI for every commit after it
+        // landed with "'B' is not a valid digit in integer literal", because
+        // `…tintHex":"` is where Swift thought the string ended.
         let icon = try decode(WrapIcon.self,
-                              #"{"origin":"monogram","tintHex":"#8B5A2B","monogram":"WB"}"#)
+                              ##"{"origin":"monogram","tintHex":"#8B5A2B","monogram":"WB"}"##)
         XCTAssertNil(icon.plate)
         let resolved = IconPlate.resolved(for: icon)
         XCTAssertEqual(resolved.colorHex, "#8B5A2B")
