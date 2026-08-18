@@ -224,14 +224,39 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Dock badge
 
     /// Mirrors the unread count a browser tab would show, read out of the page title.
+    ///
+    /// Browsers badge each tab individually; the Dock shows a single badge, so mirror
+    /// the busiest window rather than only the front one — a background window's
+    /// "(3) Inbox" still has to reach the Dock. A marker badge with no number ("•")
+    /// is shown when no window carries a count, preferring the front window's marker
+    /// when more than one kind is showing; if the front window shows no marker, the
+    /// first marked window in `windowControllers` order wins the tie-break.
     private func updateBadge() {
         guard wrap.behavior.showsBadgeFromTitle else {
             NSApp.dockTile.badgeLabel = nil
             return
         }
-        // The main window's title is the one a browser would put in the active tab.
-        let title = (frontWindowController ?? windowControllers.first)?.window?.title
-        NSApp.dockTile.badgeLabel = BadgeFromTitle.badge(for: title)
+        var bestCount: Int?
+        var markerBadge: String?
+        for controller in windowControllers {
+            guard let title = controller.window?.title else { continue }
+            // `count(for:)` can't produce 0 today (a "(0)" title parses to no badge
+            // at all), but the guard costs nothing and keeps a zero from ever beating
+            // a real count from another window.
+            if let count = BadgeFromTitle.count(for: title), count > 0 {
+                bestCount = max(bestCount ?? 0, count)
+            } else if let badge = BadgeFromTitle.badge(for: title),
+                      controller === frontWindowController || markerBadge == nil {
+                markerBadge = badge
+            }
+        }
+        if let bestCount {
+            NSApp.dockTile.badgeLabel = "\(bestCount)"
+        } else if let markerBadge {
+            NSApp.dockTile.badgeLabel = markerBadge
+        } else {
+            NSApp.dockTile.badgeLabel = nil
+        }
     }
 
     // MARK: Notifications
