@@ -38,6 +38,33 @@ extension LibraryModel {
         return store.library.sharedBoosts.first { $0.id == boost.id }
     }
 
+    // MARK: Presets
+
+    /// True when a boost with the same name *and* functional payload (theme, CSS)
+    /// is already on the shared shelf — the one home of the "preset already
+    /// added" rule. Notes are deliberately excluded: they're the most likely
+    /// thing a user edits after adding, and a trimmed note shouldn't re-enable
+    /// a preset that's functionally already there.
+    func isPresetOnShelf(_ boost: Boost) -> Bool {
+        store.library.sharedBoosts.contains {
+            $0.name == boost.name && $0.css == boost.css && $0.theme == boost.theme
+        }
+    }
+
+    /// Adds a ready-made boost to the shared shelf, selected and switched on for no
+    /// wrap yet — exactly like an import, minus the file.
+    func addPreset(_ boost: Boost) {
+        // The same preset twice is a no-op. The model owns this rule rather than
+        // the menu's `disabled`, so any caller gets it.
+        guard !isPresetOnShelf(boost) else { return }
+        var copy = boost
+        // A fresh id, so re-adding a preset after renaming (or deleting) the first
+        // copy can never collide with an id that already lives on the shelf.
+        copy.id = UUID()
+        store.addSharedBoost(copy)
+        selectedBoostID = copy.id
+    }
+
     // MARK: Boost files
 
     /// The extension for an exported boost.
