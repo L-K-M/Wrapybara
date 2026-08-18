@@ -5,7 +5,7 @@ session — and then customise the site inside it with **Boosts**.
 
 ![Screenshot showing Wrapybara and a Claude app](screenshot.png)
 
-**Latest release:** v<!-- version -->1.0.0<!-- /version --> · [Download](https://github.com/L-K-M/Wrapybara/releases/latest)
+**Latest release:** v<!-- version -->1.1.0<!-- /version --> · [Download](https://github.com/L-K-M/Wrapybara/releases/latest)
 
 > [!IMPORTANT]
 > LLM Disclosure: Wrapybara was built with substantial help from large language models — primarily Anthropic's Claude, via Claude Code. Much of the code arrived through AI-authored commits and `claude/*` pull-request branches, with agent guidance kept in [`AGENTS.md`](AGENTS.md)
