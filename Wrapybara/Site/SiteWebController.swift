@@ -38,6 +38,10 @@ final class SiteWebController: NSObject {
     /// The URL the boosts currently installed on the web view were built for. Used to
     /// avoid rebuilding user scripts on every same-page fragment change.
     private var boostedURL: URL?
+    /// The last main-frame URL this controller allowed a load for. After a
+    /// provisional failure the web view still reports the *previous* page's URL,
+    /// so the error page needs this to say what actually failed.
+    private var lastRequestedURL: URL?
     private var observations: [NSKeyValueObservation] = []
     /// Retained so WebKit's script-message registration keeps working — see
     /// `ScriptMessageForwarder`.
@@ -84,6 +88,7 @@ final class SiteWebController: NSObject {
 
     func load(_ url: URL) {
         installBoosts(for: url)
+        lastRequestedURL = url
         webView.load(URLRequest(url: url))
     }
 
@@ -275,7 +280,17 @@ extension SiteWebController: WKNavigationDelegate {
 
         switch decision {
         case .allow:
+            // The error page's own `loadHTMLString` arrives here as about:blank
+            // (when WebKit consults policy for it): let it through without
+            // churning the installed boosts — they were built for the failed URL
+            // and are what styles the error page — and without clobbering the
+            // tracked address we're about to need on the next failure.
+            if url.absoluteString == "about:blank" {
+                decisionHandler(.allow, preferences)
+                return
+            }
             if boostedURL != url { installBoosts(for: url) }
+            lastRequestedURL = url
             decisionHandler(.allow, preferences)
         case .openInNewTab:
             decisionHandler(.cancel, preferences)
@@ -346,6 +361,27 @@ extension SiteWebController: WKNavigationDelegate {
         }
         NSLog("Wrapybara: navigation failed: \(error.localizedDescription)")
         delegate?.siteWebControllerDidChangeState(self)
+
+        // Without this the failure leaves a blank white window. The page says what
+        // went wrong and offers Try Again — an ordinary link, so the retry flows
+        // through NavigationPolicy like any in-app click.
+        guard SiteErrorPage.shouldShow(for: error) else { return }
+        let failedURL = SiteErrorPage.failingURL(
+            for: error,
+            fallbacks: [lastRequestedURL, webView.url, wrap.homeURL]) ?? wrap.homeURL
+        // The error page is the recovery screen: it has to stay legible whatever
+        // the wrap's boosts would do to it. The installed user scripts are dropped
+        // for this one document, and `boostedURL` is reset so the Try Again
+        // navigation re-installs the full set on the way through decidePolicyFor.
+        webView.configuration.userContentController.removeAllUserScripts()
+        boostedURL = nil
+        // baseURL about:blank keeps the page at an opaque origin rather than the
+        // failed site's — nothing on it needs the site origin (the retry link is
+        // absolute), and the page displays the failed address itself.
+        webView.loadHTMLString(
+            SiteErrorPage.html(wrapName: wrap.name, failedURL: failedURL,
+                               error: error, tintHex: wrap.icon.tintHex),
+            baseURL: URL(string: "about:blank"))
     }
 }
 
