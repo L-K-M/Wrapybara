@@ -194,12 +194,29 @@ struct WrapEditorView: View {
         let trimmed = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != wrap.name else { return }
         var updated = wrap
-        updated.name = trimmed
+        updated.name = uniqueName(for: trimmed)
         // Keep the monogram in step with a rename; artwork the user chose is left alone.
         if updated.icon.origin == .monogram {
-            updated.icon = .monogram(for: trimmed)
+            updated.icon = .monogram(for: updated.name)
         }
         model.update(updated)
+        // Show the disambiguated name (if one was needed) in the field itself, so
+        // the name the app will bear isn't a surprise at build time.
+        nameDraft = updated.name
+    }
+
+    /// A display name that can't collide with another wrap's `.app` file name.
+    ///
+    /// Creation already does this (`WrapStore.makeWrap`); rename didn't, so two
+    /// wraps named alike would both build to the same `<Name>.app` and silently
+    /// clobber each other while the library showed both as "Built". Only the
+    /// sanitized file name is compared, so a rename that stays distinct after
+    /// sanitising keeps exactly what was typed.
+    private func uniqueName(for raw: String) -> String {
+        let sanitized = AppNameSanitizer.fileName(for: raw)
+        let taken = model.store.library.usedAppFileNames.subtracting([wrap.appFileName])
+        guard taken.contains(sanitized) else { return raw }
+        return AppNameSanitizer.uniqueFileName(for: raw, avoiding: taken)
     }
 
     private func commitURL() {
