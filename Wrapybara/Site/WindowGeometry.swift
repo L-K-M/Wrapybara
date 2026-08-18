@@ -136,8 +136,15 @@ private extension NSRect {
     /// screen, because the menu bar and the Dock own their edges.
     func constrained(to visible: NSRect) -> NSRect {
         let size = NSSize(width: min(width, visible.width), height: min(height, visible.height))
-        return NSRect(x: minX.clamped(to: visible.minX...(visible.maxX - size.width)),
-                      y: minY.clamped(to: visible.minY...(visible.maxY - size.height)),
+        return NSRect(x: Self.clamp(minX, low: visible.minX, high: visible.maxX - size.width),
+                      y: Self.clamp(minY, low: visible.minY, high: visible.maxY - size.height),
                       width: size.width, height: size.height)
+    }
+
+    /// Not the stdlib's `Comparable.clamped(to:)`: as of the Swift 5 toolchains
+    /// this project builds with, that one is `package` — visible to the standard
+    /// library and invisible here.
+    private static func clamp(_ value: CGFloat, low: CGFloat, high: CGFloat) -> CGFloat {
+        min(max(value, low), high)
     }
 }

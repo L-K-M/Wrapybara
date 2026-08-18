@@ -177,7 +177,7 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     var savedGeometry: WindowGeometry {
         WindowGeometry(frame: lastRegularFrame,
                        screenFrame: lastRegularScreenFrame,
-                       isFullScreen: window?.styleMask.contains(.fullScreenWindowMask) ?? false)
+                       isFullScreen: window?.styleMask.contains(.fullScreen) ?? false)
     }
 
     /// Puts the window back where a previous run left it, as close as the screens
@@ -201,7 +201,7 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     /// turn later: entering full screen in the same turn as a window's first
     /// appearance races the frame that was just restored.
     func reenterFullScreen() {
-        guard let window, !window.styleMask.contains(.fullScreenWindowMask) else { return }
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
         DispatchQueue.main.async {
             window.toggleFullScreen(nil)
         }
@@ -211,7 +211,7 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     /// full screen or animating into or out of it.
     private func rememberRegularFrame() {
         guard let window, !isFullScreenTransition,
-              !window.styleMask.contains(.fullScreenWindowMask) else { return }
+              !window.styleMask.contains(.fullScreen) else { return }
         lastRegularFrame = window.frame
         if let screen = window.screen { lastRegularScreenFrame = screen.frame }
     }
