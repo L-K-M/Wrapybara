@@ -303,17 +303,6 @@ heavy site looks frozen. `BoostPreviewController` already receives
 in the status bar is the whole fix. Fold the preview-downloads quiet mode (🐛P2 above)
 into the same pass. (k3 K26.)
 
-### 🎨 P3 — an "everywhere" boost restyles the navigation error page
-With [#5](https://github.com/L-K-M/Wrapybara/pull/5) and
-[#24](https://github.com/L-K-M/Wrapybara/pull/24) both landed, the two interact:
-`didFail` strips the user scripts and loads the error page, then #5's new `didFinish`
-hook sees `boostedURL != webView.url` (it's `about:blank` now) and calls
-`installBoosts(for:)` + `reapplyStylesheet(for:)`. A boost scoped to *everywhere* —
-the Dark preset, say — therefore repaints the recovery screen #24 deliberately left
-unstyled. Cosmetic, never a crash, and the Try Again link keeps working. **Fix:** skip
-the `didFinish` re-install when the URL is `about:blank`, the same carve-out #24
-already makes in `decidePolicyFor`.
-
 ---
 
 ## UX, convenience, delight
@@ -439,4 +428,9 @@ not tabs — with native tabs, two tabs in one window get no confirm.
   to delete them, for the duplication, not for that.
 - The error page's guarantees: escaped interpolation, web-only retry targets,
   boosts stripped so the recovery screen stays legible (see #24's thread for the
-  reasoning — the trade-offs were litigated in review).
+  reasoning — the trade-offs were litigated in review). `isShowingErrorPage`
+  is what keeps the stripping stuck: #5's `didFinish` hook re-installs boosts for
+  any URL that isn't `boostedURL`, and the error page is exactly that, so without
+  the flag an *everywhere*-scoped boost repaints the page a moment after it
+  appears. A flag and not an `about:blank` test — a site may navigate there itself
+  and should keep its boosts.
