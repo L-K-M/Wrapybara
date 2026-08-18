@@ -142,7 +142,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   site with SSO on another domain; a `target="_blank"` link; a PDF download; ⌘F, ⌘T,
   ⌘L, ⌘P; quitting and reopening (session restore); editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
-  version (the rebuild prompt).
+  version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
+  while its window is covered or miniaturised.
 
 ## Do / Don't
 

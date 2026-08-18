@@ -1,4 +1,5 @@
 import WebKit
+import os
 
 /// Builds the `WKWebView` a site app runs in.
 ///
@@ -9,6 +10,82 @@ import WebKit
 /// user agent unless the wrap overrides it, back/forward swipe, pinch magnification,
 /// and inline media.
 enum SiteWebViewFactory {
+
+    /// A fixed subsystem across every wrap, so the retired-key diagnostic can be
+    /// filtered in Console no matter which app the binary was copied into.
+    private static let logger = Logger(subsystem: "Wrapybara", category: "SiteWebViewFactory")
+
+    /// The `WKPreferences` keys that make a hidden page stop throttling.
+    ///
+    /// macOS treats a wrap whose window is covered, miniaturised, on another
+    /// Space, or behind a sleeping display as "hidden", and WebKit then throttles
+    /// the page's DOM timers to about once a second — and after a delay suspends
+    /// the WebContent process entirely. A streaming chat is driven by timers, so
+    /// the moment its window is covered it stops updating even though the server
+    /// is still sending; and once the process is suspended the stream dies with
+    /// no recovery short of a reload. Safari can afford that for a background
+    /// tab; a wrap is the whole app, so it should keep running the way a native
+    /// app does.
+    ///
+    /// These are the undocumented preferences Playwright, Bun and MacPin set for
+    /// exactly this reason (they're the WebKit-internal controls for hidden-page
+    /// throttling). Set through KVC because they carry a leading underscore and
+    /// so have no public Swift surface. Precedent, for anyone re-checking later:
+    /// Playwright sets all three in `browser_patches/webkit/embedder/Playwright/
+    /// mac/AppDelegate.m`, Bun the process-suppression key in `src/runtime/
+    /// webview/ObjCRuntime.cpp`, and MacPin — a similar site-wrapper — declares
+    /// them in `modules/WebKitPrivates/WKPreferencesPrivate.h`.
+    static let hiddenPageThrottlingPreferenceKeys = [
+        "hiddenPageDOMTimerThrottlingEnabled",
+        "hiddenPageDOMTimerThrottlingAutoIncreases",
+        "pageVisibilityBasedProcessSuppressionEnabled",
+    ]
+
+    /// The `set<Key>:` (or `_set<Key>:`) selector KVC resolves for `key`.
+    ///
+    /// `setValue(_:forKey:)` looks for `set<Key>:` first and falls back to
+    /// `_set<Key>:`. These keys expose only the underscored form. The trailing
+    /// colon matters: a setter takes an argument, so its selector is
+    /// `_setHiddenPageDOMTimerThrottlingEnabled:`, not `...Enabled`.
+    static func setterSelector(for key: String, underscored: Bool) -> Selector {
+        NSSelectorFromString((underscored ? "_set" : "set")
+            + key.prefix(1).uppercased() + key.dropFirst() + ":")
+    }
+
+    /// Whether `preferences` can be written with `setValue(_:forKey:)` for `key`
+    /// without raising.
+    ///
+    /// A key WebKit has retired raises an uncatchable `NSUndefinedKeyException`
+    /// from `setValue`, so probe before calling it — probe true guarantees the
+    /// write won't throw, probe false means skip. Shared with the tests so
+    /// production and CI can't drift.
+    static func respondsToThrottlingSetter(for key: String, on preferences: WKPreferences) -> Bool {
+        preferences.responds(to: setterSelector(for: key, underscored: false))
+            || preferences.responds(to: setterSelector(for: key, underscored: true))
+    }
+
+    /// Opts `configuration` out of macOS's hidden-page throttling.
+    ///
+    /// The trade-off is battery: a hidden wrap keeps running its page's timers,
+    /// which is precisely the point. The keys are undocumented but have been
+    /// stable since macOS 10.12 and are the same ones Playwright, Bun and MacPin
+    /// set. A key WebKit has since retired is skipped rather than crashing every
+    /// wrap at launch — a retired key is exactly what
+    /// `testAllConfiguredThrottlingKeysAreDisabled` is there to catch in CI,
+    /// loudly, before a release.
+    static func preventHiddenPageThrottling(_ configuration: WKWebViewConfiguration) {
+        for key in hiddenPageThrottlingPreferenceKeys {
+            guard respondsToThrottlingSetter(for: key, on: configuration.preferences) else {
+                // A user whose macOS retired a key would otherwise silently get the
+                // throttling back — this log line is how that becomes a diagnosis.
+                // Unified logging so it can be filtered by subsystem/category when
+                // it comes back from a user's machine.
+                logger.warning("WebKit no longer knows \(key, privacy: .public); hidden-page throttle opt-out incomplete")
+                continue
+            }
+            configuration.preferences.setValue(false, forKey: key)
+        }
+    }
 
     /// - Parameter handler: receives the page's messages — the picker's selection, the
     ///   notification shim's payloads, soft navigations.
@@ -22,6 +99,8 @@ enum SiteWebViewFactory {
         // extra is needed, and using a non-persistent store here would silently sign
         // the user out on every quit.
         configuration.websiteDataStore = .default()
+
+        preventHiddenPageThrottling(configuration)
 
         configuration.suppressesIncrementalRendering = false
         configuration.mediaTypesRequiringUserActionForPlayback = .audio

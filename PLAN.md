@@ -269,6 +269,24 @@ Not one feature — the absence of twenty small failures.
   none to embedders — off by default, because replacing a page global is intrusive.
 - **Sessions are per app.** Each wrap has its own bundle identifier and therefore
   its own WebKit data directory. Two wraps of one site hold two different logins.
+- **A covered window keeps the page running.** macOS throttles a hidden page's DOM
+  timers to about once a second and, after a delay, suspends the WebContent
+  process; a streaming chat then freezes the moment its window is covered or the
+  display sleeps. A wrap is a single-tab app, not a background browser tab, so the
+  runtime opts out of that throttling (`SiteWebViewFactory`). The cost is battery
+  when a wrap is hidden; that is the point. The opt-out rides undocumented
+  `WKPreferences` keys set via KVC — fine under Developer ID distribution, but
+  re-review before any Mac App Store submission. Release check: open a streaming
+  page in a wrap, cover or miniaturise the window for a minute, and confirm the
+  stream is still live; also leave it hidden 5+ minutes with the display asleep
+  and confirm a timer-driven page still advances on wake — the unit tests pin the
+  preference keys, not WebKit's behaviour or App Nap. A key retired upstream only
+  shows up on the macOS that retired it, so run the suite on the oldest supported
+  macOS and a current beta before a release. The keys only lift timer throttling
+  and WebKit's own suppression: a page that pauses on `visibilitychange` or
+  drives updates via `requestAnimationFrame` still freezes when covered, by
+  spec — so run the check with a site users actually wrap, not only a
+  timer-driven test page.
 
 ---
 
