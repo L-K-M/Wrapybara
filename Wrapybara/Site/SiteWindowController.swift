@@ -160,9 +160,34 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     @objc func sharePage(_ sender: Any?) {
         guard let url = webController.webView.url else { return }
         let picker = NSSharingServicePicker(items: [url])
-        let anchor = (sender as? NSView) ?? window?.contentView
+
+        // Anchor the menu to whatever asked for it. A toolbar item sends *itself* as
+        // the sender (and NSToolbarItem isn't a view), so fall through to its view;
+        // a menu item sends the item, in which case the best anchor is the top of
+        // the content area — not the zero rect at the content view's bottom-left
+        // corner, which is where this used to pop up from.
+        var anchor: NSView?
+        var rect = NSRect.zero
+        if let item = sender as? NSToolbarItem, let view = item.view {
+            anchor = view
+            rect = view.bounds
+        } else if let view = sender as? NSView {
+            anchor = view
+            rect = view.bounds
+        } else if let content = window?.contentView {
+            anchor = content
+            // A flipped content view puts its origin at the top, so the anchor has
+            // to follow the coordinate system — NSView's default isn't flipped, but
+            // nothing here gets to assume which one it inherited.
+            rect = NSRect(x: 0, y: content.isFlipped ? 0 : content.bounds.maxY,
+                          width: 1, height: 1)
+        }
         guard let anchor else { return }
-        picker.show(relativeTo: .zero, of: anchor, preferredEdge: .minY)
+        // The edge is read in the anchor view's coordinate system too: `.minY` is
+        // visually below the rect in an unflipped view and above it in a flipped
+        // one, so follow the same flip the rect does.
+        picker.show(relativeTo: rect, of: anchor,
+                    preferredEdge: anchor.isFlipped ? .maxY : .minY)
     }
 
     @objc func copyPageAddress(_ sender: Any?) {
