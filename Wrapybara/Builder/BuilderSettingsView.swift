@@ -126,10 +126,24 @@ struct BuilderSettingsView: View {
         }
         .frame(width: 560, height: 620)
         .task {
-            // Both of these shell out, so they're done once when the sheet opens rather
+            // Both probes shell out (`security find-identity`, `xcode-select -p`)
+            // through ProcessRunner, which blocks its thread until the tool exits.
+            // Each runs detached — off the main actor whatever isolation a child
+            // task would inherit — and both start together, so the sheet's wait is
+            // one subprocess round-trip, not two. Cancellation can't interrupt a
+            // running Process, so the guard below is what keeps a dismissed sheet
+            // from publishing stale results. Done once when the sheet opens rather
             // than on every redraw.
-            identities = CodeSigner.availableSigningIdentities()
-            isToolchainAvailable = CodeSigner.isAvailable
+            let identitiesTask = Task.detached(priority: .userInitiated) {
+                CodeSigner.availableSigningIdentities()
+            }
+            let toolchainTask = Task.detached(priority: .userInitiated) { CodeSigner.isAvailable }
+            let foundIdentities = await identitiesTask.value
+            let toolchainFound = await toolchainTask.value
+            // The sheet may have been dismissed while the tools ran.
+            guard !Task.isCancelled else { return }
+            identities = foundIdentities
+            isToolchainAvailable = toolchainFound
         }
     }
 
