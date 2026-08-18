@@ -16,38 +16,41 @@ whose remaining findings live here and whose implemented findings are in flight 
 
 ## In flight — open PRs, reviewed and waiting (do not duplicate)
 
-Twenty-four small, reviewed, CI-green changes are open against `main`. The first
-fifteen came out of the glm review; the last nine out of k3.
+The twenty-three changes that came out of the glm and k3 reviews have been reviewed
+and merged, except one. What is still open:
 
-| PR | Branch | One-liner |
+| PR | Branch | State |
 | --- | --- | --- |
-| [#2](https://github.com/L-K-M/Wrapybara/pull/2) | `perf/library-icon-cache` | Cache decoded wrap icons (`NSCache`, byte-cost budget) instead of disk-read + decode per sidebar render. |
-| [#3](https://github.com/L-K-M/Wrapybara/pull/3) | `perf/debounce-runtime-publish` | Debounce `Runtime/<uuid>.json` publication with the library save; retry failed publishes. |
-| [#4](https://github.com/L-K-M/Wrapybara/pull/4) | `fix/signing-timestamp` | `--timestamp=none` only for ad-hoc; explicit `--timestamp` for Developer ID. |
-| [#5](https://github.com/L-K-M/Wrapybara/pull/5) | `fix/restore-boosts` | Install the restored page's boosts after session restore (was home page's). |
-| [#6](https://github.com/L-K-M/Wrapybara/pull/6) | `fix/badge-all-windows` | Dock badge = max unread count across all windows/tabs. |
-| [#7](https://github.com/L-K-M/Wrapybara/pull/7) | `fix/share-picker-anchor` | Anchor the share menu to the invoking control (was window's bottom-left corner). |
-| [#8](https://github.com/L-K-M/Wrapybara/pull/8) | `fix/rename-collision` | Uniquify a wrap's name on rename so two wraps can't share one `.app`. |
-| [#9](https://github.com/L-K-M/Wrapybara/pull/9) | `fix/zap-menu-site-app` | Remove the Zap menu items from generated apps (they silently discarded picks). |
-| [#10](https://github.com/L-K-M/Wrapybara/pull/10) | `fix/remove-dead-cookie-flag` | Delete the never-wired `blocksThirdPartyCookies` knob. |
-| [#11](https://github.com/L-K-M/Wrapybara/pull/11) | `perf/preview-apply-skip` | Skip no-op boost-preview applies on unrelated SwiftUI renders. |
-| [#12](https://github.com/L-K-M/Wrapybara/pull/12) | `feat/site-dock-menu` | Dock menu for generated apps: New Window / New Tab / Go to Home Page. |
-| [#13](https://github.com/L-K-M/Wrapybara/pull/13) | `fix/stale-settings-window` | Refresh the site app's Settings window when its configuration changes. |
-| [#14](https://github.com/L-K-M/Wrapybara/pull/14) | `review/wrapybara-pwa-update-stops` | Stop hidden-page throttling so streaming pages never freeze. |
-| [#15](https://github.com/L-K-M/Wrapybara/pull/15) | `fix/wrapybara-ui-freeze` | Keep site apps out of App Nap so streaming pages don't freeze. |
-| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | Drop the bare "n"/"b" keyboard shortcuts that fired on ordinary typing. |
-| [#17](https://github.com/L-K-M/Wrapybara/pull/17) | `fix/suggested-name-numeric` | Name IP-host wraps honestly ("192.168.1.1", never "1"); numeric-label domains (163.com) keep their label. |
-| [#18](https://github.com/L-K-M/Wrapybara/pull/18) | `fix/zoom-survives-live-edits` | Live config edits no longer reset the user's ⌘+ zoom; a real UA change now applies by reloading. |
-| [#19](https://github.com/L-K-M/Wrapybara/pull/19) | `fix/settings-shell-off-main` | Settings' signing probes run off the main actor (were a potential 30 s sheet beachball). |
-| [#20](https://github.com/L-K-M/Wrapybara/pull/20) | `fix/icon-aspect-fit` | Icon artwork is aspect-fitted (never squashed), pixel-snapped to nearest points. |
-| [#21](https://github.com/L-K-M/Wrapybara/pull/21) | `fix/find-bar-esc-beep-repeat` | Find bar: no beep while typing, Esc closes (IME-safe), ⌘G repeats with the bar hidden. |
-| [#22](https://github.com/L-K-M/Wrapybara/pull/22) | `feat/toolbar-stop-while-loading` | The toolbar's reload button becomes Stop while a page is loading. |
-| [#23](https://github.com/L-K-M/Wrapybara/pull/23) | `feat/boost-presets` | Preset gallery (Dark, Readable, Kill Sticky Headers, Monospace, No Cookie Banners) on the shared shelf. |
-| [#24](https://github.com/L-K-M/Wrapybara/pull/24) | `feat/navigation-error-page` | A real error page (styled, dark-mode aware, Try Again) for failed navigations. |
+| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | **Not merged — premise refuted.** See "the ⌘N/⌘B shortcuts were never bare keys" below. |
+
+`#2`–`#15` and `#17`–`#24` are on `main`.
 
 ---
 
 ## Bugs
+
+### 🐛 P3 — the ⌘N/⌘B shortcuts were never bare keys
+`ANALYSIS.md` and [#16](https://github.com/L-K-M/Wrapybara/pull/16) both claimed
+`LibraryView.swift`'s `.keyboardShortcut("n")` and `WrapEditorView.swift`'s
+`.keyboardShortcut("b")` fired on ordinary typing. They don't: SwiftUI's
+`keyboardShortcut(_:modifiers:)` declares `modifiers: EventModifiers = .command`, so
+those are **⌘N** and **⌘B**. The bug did not exist, and #16's diff would have deleted
+a working ⌘B and swapped the app's only ⌘N for Return. **If there's still something
+worth doing here** it's the opposite shape: give the builder a
+`CommandGroup(replacing: .newItem)` so ⌘N is a real menu command that works from the
+populated library too, and add `.keyboardShortcut(.defaultAction)` to the empty-state
+button *alongside* its ⌘N rather than instead of it.
+
+### 🎨 P3 — an "everywhere" boost restyles the navigation error page
+With [#5](https://github.com/L-K-M/Wrapybara/pull/5) and
+[#24](https://github.com/L-K-M/Wrapybara/pull/24) both landed, the two interact:
+`didFail` strips the user scripts and loads the error page, then #5's new `didFinish`
+hook sees `boostedURL != webView.url` (it's `about:blank` now) and calls
+`installBoosts(for:)` + `reapplyStylesheet(for:)`. A boost scoped to *everywhere* —
+the Dark preset, say — therefore repaints the recovery screen #24 deliberately left
+unstyled. Cosmetic, never a crash, and the Try Again link keeps working. **Fix:** skip
+the `didFinish` re-install when the URL is `about:blank`, the same carve-out #24
+already makes in `decidePolicyFor`.
 
 ### 🐛 P2 — notification clicks route to whichever window is front
 `SiteAppDelegate.handleNotificationClick(pageID:)` evaluates
@@ -56,8 +59,8 @@ a background window's page activates the wrong window's callback (or nothing, if
 window was closed). **Fix:** carry the source window through `NotificationBridge`
 (id → weak `SiteWindowController` map, populated in the `onNotification` closure the
 app delegate already installs per controller) and route the click there, falling back
-to the front window. *Note: #6, #12, #13 and #15 already touch `SiteAppDelegate` —
-land this after they merge to avoid the pile-up.*
+to the front window. *Note: #6, #12, #13 and #15 have landed, so
+`SiteAppDelegate` is clear for this.*
 
 ### 🐛 P2 — the minus button is a silent no-op for shared boosts
 `BoostsTabView`'s footer minus button calls `model.deleteBoost(_:from:)`, which only
