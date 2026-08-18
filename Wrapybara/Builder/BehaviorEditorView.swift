@@ -18,6 +18,13 @@ struct BehaviorEditorView: View {
                 Picker("Chrome", selection: binding(\.chrome)) {
                     ForEach(WrapBehavior.Chrome.allCases) { Text($0.displayName).tag($0) }
                 }
+                if behavior.chrome == .none {
+                    Text("The page runs edge to edge and the traffic lights float over it. "
+                         + "The top strip of the page stays reserved for dragging the "
+                         + "window — clicks there don't reach the site.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle("Show the address in the toolbar", isOn: binding(\.showsAddressBar))
                     .disabled(!behavior.chrome.showsToolbar)
                 Toggle("Allow native tabs (⌘T)", isOn: binding(\.allowsNativeTabs))

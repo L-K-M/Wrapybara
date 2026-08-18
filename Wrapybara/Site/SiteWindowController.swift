@@ -86,10 +86,31 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         findBar.view.translatesAutoresizingMaskIntoConstraints = false
 
         let container = NSView()
-        container.addSubview(findBar.view)
         container.addSubview(webView)
 
-        NSLayoutConstraint.activate([
+        var stripConstraints: [NSLayoutConstraint] = []
+        if behavior.chrome.hasTransparentTitleBar {
+            // No toolbar and no visible title bar: the web view would swallow
+            // every mouse event at the window's top edge and nothing could drag
+            // it. The strip reserves that band for dragging. It goes *above* the
+            // web view but *below* the find bar, which owns the window's top edge
+            // while it's open (the bar hides to zero height, so the strip is the
+            // topmost hittable view the rest of the time).
+            let strip = WindowDragStrip()
+            strip.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(strip)
+            stripConstraints = [
+                strip.topAnchor.constraint(equalTo: container.topAnchor),
+                strip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                strip.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                strip.heightAnchor.constraint(equalToConstant: Self.titleBarHeight),
+            ]
+        }
+
+        // Last is topmost: the find bar must win its overlap with the drag strip.
+        container.addSubview(findBar.view)
+
+        NSLayoutConstraint.activate(stripConstraints + [
             findBar.view.topAnchor.constraint(equalTo: container.topAnchor),
             findBar.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             findBar.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
@@ -102,6 +123,15 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         window?.contentView = container
         window?.initialFirstResponder = webView
     }
+
+    /// The system title bar's height for a plain titled window — the strip of page
+    /// the drag strip reserves in "No chrome". Measured from the OS rather than
+    /// hard-coded, because the metric has moved between macOS releases.
+    private static let titleBarHeight: CGFloat = {
+        let content = NSRect(x: 0, y: 0, width: 100, height: 100)
+        return NSWindow.frameRect(forContentRect: content, styleMask: [.titled]).height
+            - content.height
+    }()
 
     // MARK: Loading
 
@@ -271,7 +301,10 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         // Prefer the page's title, the way a browser tab does — it's what makes native
         // tabs useful — but never show an empty title bar.
         window?.title = pageTitle.isEmpty ? wrapName : pageTitle
-        window?.representedURL = webView.url
+        // Deliberately no `representedURL`: that API is for documents, and pointed
+        // at a page URL it draws a proxy icon whose drag fails with a "document
+        // could not be found" error, and turns the title into a document button
+        // that eats the drag gesture the title bar would otherwise offer.
 
         navigationControl?.setEnabled(webView.canGoBack, forSegment: 0)
         navigationControl?.setEnabled(webView.canGoForward, forSegment: 1)
