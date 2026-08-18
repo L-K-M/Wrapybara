@@ -149,7 +149,11 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   ⌘L, ⌘P; quitting and reopening (session restore); editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
-  while its window is covered or miniaturised.
+  while its window is covered or miniaturised; a failed navigation with an
+  *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
+  must keep its own styling, and Try Again must land on a page that has the boost
+  back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this
+  one is only ever caught by eye.
 
 ## Do / Don't
 

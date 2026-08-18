@@ -10,40 +10,14 @@ Types: 🐛 bug · ⚡ performance · 🎨 visual/layout · ✨ feature · 💡 
 
 Related documents: `PLAN.md` (design), `AGENTS.md` (constraints — read before touching
 export/signing/boost trust), `glm.md` (the first review), `k3.md` (the second review,
-whose remaining findings live here and whose implemented findings are in flight below).
+whose remaining findings live here and whose implemented findings are now on `main`).
 
 ---
 
-## In flight — open PRs, reviewed and waiting (do not duplicate)
+## In flight — open PRs (do not duplicate)
 
-Twenty-four small, reviewed, CI-green changes are open against `main`. The first
-fifteen came out of the glm review; the last nine out of k3.
-
-| PR | Branch | One-liner |
-| --- | --- | --- |
-| [#2](https://github.com/L-K-M/Wrapybara/pull/2) | `perf/library-icon-cache` | Cache decoded wrap icons (`NSCache`, byte-cost budget) instead of disk-read + decode per sidebar render. |
-| [#3](https://github.com/L-K-M/Wrapybara/pull/3) | `perf/debounce-runtime-publish` | Debounce `Runtime/<uuid>.json` publication with the library save; retry failed publishes. |
-| [#4](https://github.com/L-K-M/Wrapybara/pull/4) | `fix/signing-timestamp` | `--timestamp=none` only for ad-hoc; explicit `--timestamp` for Developer ID. |
-| [#5](https://github.com/L-K-M/Wrapybara/pull/5) | `fix/restore-boosts` | Install the restored page's boosts after session restore (was home page's). |
-| [#6](https://github.com/L-K-M/Wrapybara/pull/6) | `fix/badge-all-windows` | Dock badge = max unread count across all windows/tabs. |
-| [#7](https://github.com/L-K-M/Wrapybara/pull/7) | `fix/share-picker-anchor` | Anchor the share menu to the invoking control (was window's bottom-left corner). |
-| [#8](https://github.com/L-K-M/Wrapybara/pull/8) | `fix/rename-collision` | Uniquify a wrap's name on rename so two wraps can't share one `.app`. |
-| [#9](https://github.com/L-K-M/Wrapybara/pull/9) | `fix/zap-menu-site-app` | Remove the Zap menu items from generated apps (they silently discarded picks). |
-| [#10](https://github.com/L-K-M/Wrapybara/pull/10) | `fix/remove-dead-cookie-flag` | Delete the never-wired `blocksThirdPartyCookies` knob. |
-| [#11](https://github.com/L-K-M/Wrapybara/pull/11) | `perf/preview-apply-skip` | Skip no-op boost-preview applies on unrelated SwiftUI renders. |
-| [#12](https://github.com/L-K-M/Wrapybara/pull/12) | `feat/site-dock-menu` | Dock menu for generated apps: New Window / New Tab / Go to Home Page. |
-| [#13](https://github.com/L-K-M/Wrapybara/pull/13) | `fix/stale-settings-window` | Refresh the site app's Settings window when its configuration changes. |
-| [#14](https://github.com/L-K-M/Wrapybara/pull/14) | `review/wrapybara-pwa-update-stops` | Stop hidden-page throttling so streaming pages never freeze. |
-| [#15](https://github.com/L-K-M/Wrapybara/pull/15) | `fix/wrapybara-ui-freeze` | Keep site apps out of App Nap so streaming pages don't freeze. |
-| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | Drop the bare "n"/"b" keyboard shortcuts that fired on ordinary typing. |
-| [#17](https://github.com/L-K-M/Wrapybara/pull/17) | `fix/suggested-name-numeric` | Name IP-host wraps honestly ("192.168.1.1", never "1"); numeric-label domains (163.com) keep their label. |
-| [#18](https://github.com/L-K-M/Wrapybara/pull/18) | `fix/zoom-survives-live-edits` | Live config edits no longer reset the user's ⌘+ zoom; a real UA change now applies by reloading. |
-| [#19](https://github.com/L-K-M/Wrapybara/pull/19) | `fix/settings-shell-off-main` | Settings' signing probes run off the main actor (were a potential 30 s sheet beachball). |
-| [#20](https://github.com/L-K-M/Wrapybara/pull/20) | `fix/icon-aspect-fit` | Icon artwork is aspect-fitted (never squashed), pixel-snapped to nearest points. |
-| [#21](https://github.com/L-K-M/Wrapybara/pull/21) | `fix/find-bar-esc-beep-repeat` | Find bar: no beep while typing, Esc closes (IME-safe), ⌘G repeats with the bar hidden. |
-| [#22](https://github.com/L-K-M/Wrapybara/pull/22) | `feat/toolbar-stop-while-loading` | The toolbar's reload button becomes Stop while a page is loading. |
-| [#23](https://github.com/L-K-M/Wrapybara/pull/23) | `feat/boost-presets` | Preset gallery (Dark, Readable, Kill Sticky Headers, Monospace, No Cookie Banners) on the shared shelf. |
-| [#24](https://github.com/L-K-M/Wrapybara/pull/24) | `feat/navigation-error-page` | A real error page (styled, dark-mode aware, Try Again) for failed navigations. |
+None. All twenty-three changes from the glm and k3 reviews (`#2`–`#24`) are on
+`main`.
 
 ---
 
@@ -56,8 +30,8 @@ a background window's page activates the wrong window's callback (or nothing, if
 window was closed). **Fix:** carry the source window through `NotificationBridge`
 (id → weak `SiteWindowController` map, populated in the `onNotification` closure the
 app delegate already installs per controller) and route the click there, falling back
-to the front window. *Note: #6, #12, #13 and #15 already touch `SiteAppDelegate` —
-land this after they merge to avoid the pile-up.*
+to the front window. *Note: #6, #12, #13 and #15 have landed, so
+`SiteAppDelegate` is clear for this.*
 
 ### 🐛 P2 — the minus button is a silent no-op for shared boosts
 `BoostsTabView`'s footer minus button calls `model.deleteBoost(_:from:)`, which only
@@ -443,6 +417,20 @@ not tabs — with native tabs, two tabs in one window get no confirm.
 - The notification trust model for imported scripts (untrusted until read).
 - The find bar via WebKit's own `find`; the Smart-Invert-style media counter-filter.
 - The selector ladder that rejects framework-generated identifiers.
+- ⌘N and ⌘B are **AppKit menu items** in `BuilderMenuBuilder.fileMenu` ("New Wrap…",
+  "Build Selected Wrap"), not SwiftUI commands — there is no `App`/`Scene` in this
+  project, so there is no `.commands` builder and `CommandGroup` doesn't apply. Don't
+  re-add `.keyboardShortcut("n")`/`("b")` to the SwiftUI buttons: a control in the key
+  window shadows the menu item ("the first one found is used"), which is what #16
+  removed. Note for anyone re-reading the source reviews: glm/k3 called these "bare"
+  shortcuts that fired on ordinary typing. They never did —
+  `keyboardShortcut(_:modifiers:)` defaults `modifiers` to `.command`. #16 was right
+  to delete them, for the duplication, not for that.
 - The error page's guarantees: escaped interpolation, web-only retry targets,
   boosts stripped so the recovery screen stays legible (see #24's thread for the
-  reasoning — the trade-offs were litigated in review).
+  reasoning — the trade-offs were litigated in review). `isShowingErrorPage`
+  is what keeps the stripping stuck: #5's `didFinish` hook re-installs boosts for
+  any URL that isn't `boostedURL`, and the error page is exactly that, so without
+  the flag an *everywhere*-scoped boost repaints the page a moment after it
+  appears. A flag and not an `about:blank` test — a site may navigate there itself
+  and should keep its boosts.

@@ -42,6 +42,15 @@ final class SiteWebController: NSObject {
     /// provisional failure the web view still reports the *previous* page's URL,
     /// so the error page needs this to say what actually failed.
     private var lastRequestedURL: URL?
+    /// Whether the document on screen is the navigation error page.
+    ///
+    /// The error page is the recovery screen and carries its own styling, so no
+    /// boost may reach it — `report(_:)` strips the user scripts precisely so a
+    /// dark or aggressive theme can't repaint the one page that has to stay
+    /// readable. A flag rather than sniffing for `about:blank`: a site is entitled
+    /// to navigate to `about:blank` itself, and that page should still get its
+    /// boosts.
+    private var isShowingErrorPage = false
     private var observations: [NSKeyValueObservation] = []
     /// Retained so WebKit's script-message registration keeps working — see
     /// `ScriptMessageForwarder`.
@@ -89,6 +98,7 @@ final class SiteWebController: NSObject {
     func load(_ url: URL) {
         installBoosts(for: url)
         lastRequestedURL = url
+        isShowingErrorPage = false
         webView.load(URLRequest(url: url))
     }
 
@@ -291,6 +301,7 @@ extension SiteWebController: WKNavigationDelegate {
             }
             if boostedURL != url { installBoosts(for: url) }
             lastRequestedURL = url
+            isShowingErrorPage = false
             decisionHandler(.allow, preferences)
         case .openInNewTab:
             decisionHandler(.cancel, preferences)
@@ -338,7 +349,11 @@ extension SiteWebController: WKNavigationDelegate {
         // on screen; install the right set now and restyle in place. (The
         // documentStart scripts for that first paint are already past; late is far
         // better than wrong until the next navigation.)
-        if let url = webView.url, boostedURL != url {
+        //
+        // Not for the error page, though: it arrives here with `boostedURL` nil and
+        // a URL of its own, so without the guard this hook would hand the recovery
+        // screen exactly the boosts `report(_:)` just stripped off it.
+        if !isShowingErrorPage, let url = webView.url, boostedURL != url {
             installBoosts(for: url)
             reapplyStylesheet(for: url)
         }
@@ -375,6 +390,7 @@ extension SiteWebController: WKNavigationDelegate {
         // navigation re-installs the full set on the way through decidePolicyFor.
         webView.configuration.userContentController.removeAllUserScripts()
         boostedURL = nil
+        isShowingErrorPage = true
         // baseURL about:blank keeps the page at an opaque origin rather than the
         // failed site's — nothing on it needs the site origin (the retry link is
         // absolute), and the page displays the failed address itself.
