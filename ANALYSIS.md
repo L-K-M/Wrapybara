@@ -10,18 +10,18 @@ Types: 🐛 bug · ⚡ performance · 🎨 visual/layout · ✨ feature · 💡 
 
 Related documents: `PLAN.md` (design), `AGENTS.md` (constraints — read before touching
 export/signing/boost trust), `glm.md` (the first review), `k3.md` (the second review,
-whose remaining findings live here and whose implemented findings are in flight below).
+whose remaining findings live here and whose implemented findings are now on `main`).
 
 ---
 
-## In flight — open PRs, reviewed and waiting (do not duplicate)
+## In flight — still-open PRs (do not duplicate)
 
 The twenty-three changes that came out of the glm and k3 reviews have been reviewed
 and merged, except one. What is still open:
 
 | PR | Branch | State |
 | --- | --- | --- |
-| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | **Not merged — premise refuted.** See "the ⌘N/⌘B shortcuts were never bare keys" below. |
+| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | **Not merged — premise refuted.** Needs a maintainer call: reshape it as "the ⌘N/⌘B shortcuts were never bare keys" below describes, or close it. |
 
 `#2`–`#15` and `#17`–`#24` are on `main`.
 
