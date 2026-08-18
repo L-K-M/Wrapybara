@@ -40,17 +40,20 @@ enum IconComposer {
     /// How much of the plate the site's artwork fills. Leaving a margin is what
     /// stops a logo from looking cramped against the plate edge.
     static let artworkFraction: CGFloat = 0.66
+    /// Pattern bits across the plate when a classic tile is drawn — eight tiles
+    /// of the classic 8×8, so each bit is a chunky 1/64 of the plate edge.
+    static let patternBitsAcross = 64
 
     // MARK: Composition
 
     /// The finished 1024×1024 icon for `artwork`.
-    static func compose(artwork: NSImage, style: Style, plateColor: NSColor) -> NSImage {
+    static func compose(artwork: NSImage, style: Style, plate: IconPlate) -> NSImage {
         switch style {
         case .asIs:
             return redraw(artwork, edge: canvas)
         case .plate:
             return NSImage(size: NSSize(width: canvas, height: canvas), flipped: false) { _ in
-                drawPlate(color: plateColor)
+                drawPlate(plate)
                 let artworkEdge = plateEdge * artworkFraction
                 let origin = (canvas - artworkEdge) / 2
                 let box = NSRect(x: origin, y: origin, width: artworkEdge, height: artworkEdge)
@@ -63,9 +66,9 @@ enum IconComposer {
 
     /// The monogram fallback: initials on a tinted plate, for a wrap whose site
     /// offered no usable artwork.
-    static func monogram(_ letters: String, plateColor: NSColor) -> NSImage {
+    static func monogram(_ letters: String, plate: IconPlate) -> NSImage {
         NSImage(size: NSSize(width: canvas, height: canvas), flipped: false) { _ in
-            drawPlate(color: plateColor)
+            drawPlate(plate)
 
             let text = letters.isEmpty ? "?" : letters
             // Size the type to the number of glyphs so one letter isn't lost on the
@@ -90,18 +93,48 @@ enum IconComposer {
 
     // MARK: Pieces
 
-    /// Fills the plate: a rounded rect with a soft vertical gradient so it doesn't
-    /// look like flat colour, plus a hairline top highlight.
-    static func drawPlate(color: NSColor) {
+    /// Fills the plate.
+    ///
+    /// Without a pattern: a soft vertical gradient so it doesn't look like flat
+    /// colour, plus a hairline top highlight. With one of the classic tiles: flat
+    /// and two-tone, because that's what the originals looked like — the gradient
+    /// would read as a modern texture *behind* a pattern rather than as the
+    /// pattern. The two tones are derived from the one colour the user picks, so
+    /// there's a single knob and no way to arrive at a clashing pair.
+    static func drawPlate(_ plate: IconPlate) {
         let inset = (canvas - plateEdge) / 2
         let rect = NSRect(x: inset, y: inset, width: plateEdge, height: plateEdge)
         let path = NSBezierPath(roundedRect: rect, xRadius: plateRadius, yRadius: plateRadius)
 
-        let base = color.usingColorSpace(.sRGB) ?? color
-        let top = base.blended(withFraction: 0.18, of: .white) ?? base
-        let bottom = base.blended(withFraction: 0.12, of: .black) ?? base
-        // AppKit's y axis points up, so `angle: -90` runs the gradient top-to-bottom.
-        NSGradient(starting: top, ending: bottom)?.draw(in: path, angle: -90)
+        // A stored colour that doesn't parse can't be "dropped" here — the plate
+        // has to be painted *something* — so it lands on Wrapybara's brown.
+        let parsed = NSColor(hex: plate.colorHex)
+            ?? NSColor(hex: WrapIcon.defaultTintHex) ?? .systemBrown
+        let base = parsed.usingColorSpace(.sRGB) ?? parsed
+        let ink = base.blended(withFraction: 0.18, of: .white) ?? base
+        let paper = base.blended(withFraction: 0.12, of: .black) ?? base
+
+        if let pattern = plate.pattern {
+            paper.setFill()
+            path.fill()
+
+            NSGraphicsContext.saveGraphicsState()
+            path.addClip()
+            ink.setFill()
+            let bitEdge = plateEdge / CGFloat(patternBitsAcross)
+            for row in 0 ..< patternBitsAcross {
+                for column in 0 ..< patternBitsAcross where pattern.bit(column: column, row: row) {
+                    // Pattern row 0 is the tile's top; AppKit's y axis points up.
+                    NSRect(x: inset + CGFloat(column) * bitEdge,
+                           y: inset + plateEdge - CGFloat(row + 1) * bitEdge,
+                           width: bitEdge, height: bitEdge).fill()
+                }
+            }
+            NSGraphicsContext.restoreGraphicsState()
+        } else {
+            // AppKit's y axis points up, so `angle: -90` runs the gradient top-to-bottom.
+            NSGradient(starting: ink, ending: paper)?.draw(in: path, angle: -90)
+        }
 
         NSColor.white.withAlphaComponent(0.10).setStroke()
         path.lineWidth = canvas * 0.006
@@ -146,10 +179,5 @@ enum IconComposer {
                       y: bounds.minY + ((bounds.height - height) / 2).rounded(),
                       width: width,
                       height: height)
-    }
-
-    /// The plate colour for a wrap: its stored tint, or Wrapybara's brown.
-    static func plateColor(for icon: WrapIcon) -> NSColor {
-        NSColor(hex: icon.tintHex) ?? NSColor(hex: WrapIcon.defaultTintHex) ?? .systemBrown
     }
 }

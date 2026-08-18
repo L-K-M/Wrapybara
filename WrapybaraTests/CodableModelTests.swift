@@ -244,4 +244,45 @@ final class CodableModelTests: XCTestCase {
         XCTAssertTrue(WrapIcon.palette.contains(WrapIcon.tintHex(for: "Anything")))
         XCTAssertEqual(WrapIcon.tintHex(for: ""), WrapIcon.defaultTintHex)
     }
+
+    // MARK: Icon plates
+
+    func testIconWithAPlateRoundTrips() throws {
+        var icon = WrapIcon(origin: .pickedFile,
+                            sourceURL: URL(string: "file:///tmp/artwork.png"),
+                            tintHex: "#2C5F8A", monogram: "A")
+        icon.plate = IconPlate(colorHex: "#CC4400", pattern: .bricks)
+        XCTAssertEqual(try roundTrip(icon), icon)
+    }
+
+    func testIconWrittenBeforePlatesDecodesToAutomatic() throws {
+        // Libraries and baked-in configs from before plates were editable have no
+        // `plate` key; nil *is* the automatic behaviour they used to get.
+        let icon = try decode(WrapIcon.self,
+                              #"{"origin":"monogram","tintHex":"#8B5A2B","monogram":"WB"}"#)
+        XCTAssertNil(icon.plate)
+        let resolved = IconPlate.resolved(for: icon)
+        XCTAssertEqual(resolved.colorHex, "#8B5A2B")
+        XCTAssertNil(resolved.pattern)
+    }
+
+    func testAChosenPlateWinsOverTheTint() {
+        var icon = WrapIcon(origin: .monogram, tintHex: "#2C5F8A", monogram: "WB")
+        icon.plate = IconPlate(colorHex: "#CC4400", pattern: .dots)
+        XCTAssertEqual(IconPlate.resolved(for: icon),
+                       IconPlate(colorHex: "#CC4400", pattern: .dots))
+    }
+
+    func testABadPlateColourCostsOnlyThatField() throws {
+        // Hand-editable files: one mistyped value degrades to the default for that
+        // field, and the pattern choice survives.
+        let plate = try decode(IconPlate.self, #"{"colorHex":"octarine","pattern":"weave"}"#)
+        XCTAssertEqual(plate.colorHex, WrapIcon.defaultTintHex)
+        XCTAssertEqual(plate.pattern, .weave)
+    }
+
+    func testAnUnknownPatternNameDropsToTheGradient() throws {
+        let plate = try decode(IconPlate.self, #"{"colorHex":"#CC4400","pattern":"houndstooth"}"#)
+        XCTAssertNil(plate.pattern)
+    }
 }

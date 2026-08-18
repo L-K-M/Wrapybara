@@ -120,6 +120,19 @@ final class LibraryModel: ObservableObject {
     }
 
     func update(_ wrap: Wrap) {
+        // A monogram is drawn from the wrap's name and plate rather than fetched,
+        // but the fetch path still saves it as a PNG — so an edit that changes
+        // either input (a rename, a plate restyle) would otherwise leave the old
+        // monogram on disk, and the library and any build would keep showing it.
+        // Redrawing here is what keeps "the monogram is just the current inputs,
+        // rendered" true.
+        let previous = store.library.wrap(id: wrap.id)
+        if wrap.icon.origin == .monogram,
+           previous?.name != wrap.name || previous?.icon != wrap.icon {
+            try? exporter.saveIcon(IconComposer.monogram(WrapIcon.initials(for: wrap.name),
+                                                         plate: IconPlate.resolved(for: wrap.icon)),
+                                   for: wrap)
+        }
         store.update(wrap)
     }
 
@@ -230,7 +243,8 @@ final class LibraryModel: ObservableObject {
         let fetcher = SiteIconFetcher()
         let outcome = await fetcher.icon(for: wrap.homeURL,
                                         fallbackName: wrap.name,
-                                        style: preferences.iconStyle)
+                                        style: preferences.iconStyle,
+                                        plate: wrap.icon.plate)
 
         guard var current = store.library.wrap(id: wrapID) else { return }
         do {
@@ -240,12 +254,21 @@ final class LibraryModel: ObservableObject {
                                  message: error.localizedDescription, isError: true)
             return
         }
+        // The raw artwork, so a later plate restyle can recompose without
+        // re-fetching. A courtesy copy: the icon is saved, so a failure here
+        // only means the recompose path asks for the artwork again.
+        if let artwork = outcome.artwork {
+            try? exporter.saveArtwork(artwork, for: current)
+        }
         current.icon = WrapIcon(
             origin: outcome.isFallback ? .monogram : .fetchedFromSite,
             sourceURL: outcome.sourceURL,
             tintHex: outcome.themeColorHex.flatMap { BoostCSSGenerator.sanitizedColor($0) }
                 ?? WrapIcon.tintHex(for: current.name),
-            monogram: WrapIcon.initials(for: current.name))
+            monogram: WrapIcon.initials(for: current.name),
+            // A deliberately chosen plate survives re-fetching — it's why the
+            // fetch composed with it. `current`'s, not `wrap`'s: the freshest.
+            plate: current.icon.plate)
         // Only take the site's own name when the user didn't type one.
         if applySuggestedName, let suggested = outcome.suggestedName,
            !suggested.isEmpty, current.name != suggested {
@@ -268,9 +291,11 @@ final class LibraryModel: ObservableObject {
 
         let composed = IconComposer.compose(artwork: image,
                                             style: preferences.iconStyle,
-                                            plateColor: IconComposer.plateColor(for: wrap.icon))
+                                            plate: IconPlate.resolved(for: wrap.icon))
         do {
             try exporter.saveIcon(composed, for: wrap)
+            // As with a fetch: keep the raw artwork for future plate restyles.
+            try? exporter.saveArtwork(image, for: wrap)
             var updated = wrap
             updated.icon.origin = .pickedFile
             updated.icon.sourceURL = url
@@ -279,6 +304,64 @@ final class LibraryModel: ObservableObject {
             alert = AlertContent(title: "Couldn't save the icon",
                                  message: error.localizedDescription, isError: true)
         }
+    }
+
+    /// Restyles the plate behind the wrap's artwork and redraws the icon.
+    ///
+    /// `nil` restores *automatic*: a gradient in the wrap's tint, tracking the
+    /// site's `theme-color` on the next fetch. The choice is stored even when the
+    /// artwork to draw it behind isn't on disk — a wrap whose icon predates
+    /// artwork retention picks the new plate up on its next fetch or file pick.
+    func updateIconPlate(_ plate: IconPlate?, for wrap: Wrap) {
+        var updated = wrap
+        updated.icon.plate = plate
+        let resolved = IconPlate.resolved(for: updated.icon)
+
+        switch updated.icon.origin {
+        case .monogram:
+            // A monogram is drawn, never fetched, so there's always something to
+            // redraw — no artwork needed.
+            do {
+                try exporter.saveIcon(IconComposer.monogram(WrapIcon.initials(for: updated.name),
+                                                            plate: resolved),
+                                      for: updated)
+            } catch {
+                alert = AlertContent(title: "Couldn't save the icon",
+                                     message: error.localizedDescription, isError: true)
+            }
+        case .pickedFile, .fetchedFromSite:
+            if let artwork = artworkForRecomposing(updated) {
+                do {
+                    try exporter.saveIcon(IconComposer.compose(artwork: artwork,
+                                                               style: preferences.iconStyle,
+                                                               plate: resolved),
+                                          for: updated)
+                } catch {
+                    alert = AlertContent(title: "Couldn't save the icon",
+                                         message: error.localizedDescription, isError: true)
+                }
+            } else {
+                alert = AlertContent(
+                    title: "The plate takes effect on the next artwork",
+                    message: "This wrap's original artwork isn't on disk — it was saved "
+                        + "before Wrapybara kept it. Fetch the icon from the site or choose "
+                        + "the file again and it will be drawn with the new plate.",
+                    isError: false)
+            }
+        }
+        store.update(updated)
+    }
+
+    /// The raw artwork for a recompose: the retained copy, or — for a wrap saved
+    /// before artwork retention — the file the artwork was originally picked from,
+    /// if it's still where it was. A picked file that still exists also becomes
+    /// the retained copy, so the next restyle doesn't ask again.
+    private func artworkForRecomposing(_ wrap: Wrap) -> NSImage? {
+        if let artwork = exporter.artwork(for: wrap) { return artwork }
+        guard let url = wrap.icon.sourceURL, url.isFileURL,
+              let image = NSImage(contentsOf: url), image.isValid else { return nil }
+        try? exporter.saveArtwork(image, for: wrap)
+        return image
     }
 
     /// The artwork to show in the library, drawn fresh for a monogram wrap.

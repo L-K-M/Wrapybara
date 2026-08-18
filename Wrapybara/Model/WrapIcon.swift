@@ -25,15 +25,20 @@ struct WrapIcon: Codable, Equatable {
     var tintHex: String
     /// One or two letters for the monogram.
     var monogram: String
+    /// The user's chosen plate behind the artwork. `nil` is *automatic*: a
+    /// gradient derived from `tintHex`. See `IconPlate`.
+    var plate: IconPlate?
 
     init(origin: Origin = .monogram,
          sourceURL: URL? = nil,
          tintHex: String = WrapIcon.defaultTintHex,
-         monogram: String = "") {
+         monogram: String = "",
+         plate: IconPlate? = nil) {
         self.origin = origin
         self.sourceURL = sourceURL
         self.tintHex = tintHex
         self.monogram = monogram
+        self.plate = plate
     }
 
     /// Wrapybara's own warm brown, so an un-iconed wrap still looks deliberate.
@@ -84,4 +89,21 @@ struct WrapIcon: Codable, Equatable {
         "#8B5A2B", "#2F6F4F", "#2C5F8A", "#6A4C93",
         "#A4453A", "#7A6A2F", "#3F6F73", "#8A4C6B",
     ]
+
+    // MARK: Codable
+
+    enum CodingKeys: String, CodingKey {
+        case origin, sourceURL, tintHex, monogram, plate
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.origin = c.value(.origin, or: .monogram)
+        self.sourceURL = c.optional(.sourceURL)
+        self.tintHex = c.value(.tintHex, or: WrapIcon.defaultTintHex)
+        self.monogram = c.value(.monogram, or: "")
+        // Missing on every icon written before plates were editable — exactly
+        // the "automatic" the nil represents, so old libraries keep their look.
+        self.plate = c.optional(.plate)
+    }
 }

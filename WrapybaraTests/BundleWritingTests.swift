@@ -89,7 +89,7 @@ final class BundleWritingTests: XCTestCase {
     // MARK: ICNS
 
     func testIcnsHasTheRightContainerHeader() throws {
-        let image = IconComposer.monogram("WB", plateColor: .systemBrown)
+        let image = IconComposer.monogram("WB", plate: IconPlate())
         let data = try IcnsWriter.data(for: image)
 
         XCTAssertGreaterThan(data.count, 8)
@@ -100,7 +100,7 @@ final class BundleWritingTests: XCTestCase {
     }
 
     func testIcnsContainsEveryDeclaredElementType() throws {
-        let image = IconComposer.monogram("WB", plateColor: .systemBrown)
+        let image = IconComposer.monogram("WB", plate: IconPlate())
         let data = try IcnsWriter.data(for: image)
         let text = String(decoding: data, as: UTF8.self)
         for element in IcnsWriter.elements {
@@ -141,7 +141,7 @@ final class BundleWritingTests: XCTestCase {
             return true
         }
         let composed = IconComposer.compose(artwork: artwork, style: .plate,
-                                            plateColor: .systemBrown)
+                                            plate: IconPlate())
         XCTAssertEqual(composed.size.width, IconComposer.canvas)
         XCTAssertEqual(composed.size.height, IconComposer.canvas)
     }
@@ -152,10 +152,15 @@ final class BundleWritingTests: XCTestCase {
         XCTAssertEqual(IconComposer.plateEdge, 824)
     }
 
-    func testPlateColorFallsBackForAnUnreadableTint() {
+    func testPlateFallsBackForAnUnreadableColour() {
+        // A hand-edited or corrupt hex can't be painted as itself; the plate must
+        // fall back rather than produce no icon at all.
         var icon = WrapIcon()
         icon.tintHex = "not a colour"
-        XCTAssertNotNil(IconComposer.plateColor(for: icon))
+        let plate = IconPlate.resolved(for: icon)
+        XCTAssertEqual(plate.colorHex, "not a colour", "resolution keeps the stored value…")
+        let image = IconComposer.monogram("WB", plate: plate)
+        XCTAssertEqual(image.size.width, IconComposer.canvas, "…and paint-time falls back")
     }
 
     // MARK: Signing identities

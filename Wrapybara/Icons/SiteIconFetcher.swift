@@ -35,6 +35,9 @@ struct SiteIconFetcher {
     struct Outcome {
         /// The composed 1024×1024 icon, ready for `IcnsWriter`.
         var icon: NSImage
+        /// The winning artwork *before* composition, so the builder can keep it on
+        /// disk and recompose when the plate is restyled. `nil` on the fallback.
+        var artwork: NSImage?
         /// Where the winning artwork came from, for `WrapIcon.sourceURL`.
         var sourceURL: URL?
         /// The site's own name, if it advertised one better than the URL guess.
@@ -67,7 +70,11 @@ struct SiteIconFetcher {
     /// The best icon for `url`, or the monogram fallback.
     ///
     /// - Parameter fallbackName: used for the monogram's letters and tint.
-    func icon(for url: URL, fallbackName: String, style: IconComposer.Style = .plate) async -> Outcome {
+    /// - Parameter plate: a plate the user already chose for this wrap. When `nil`
+    ///   the plate is derived from the site's `theme-color`, falling back to the
+    ///   name-hash tint — an explicit choice always survives a re-fetch.
+    func icon(for url: URL, fallbackName: String, style: IconComposer.Style = .plate,
+              plate: IconPlate? = nil) async -> Outcome {
         let (metadata, manifest) = await discover(at: url)
 
         var candidates = (metadata?.candidates ?? []) + (manifest?.candidates ?? [])
@@ -80,9 +87,8 @@ struct SiteIconFetcher {
 
         let siteName = manifest?.name ?? manifest?.shortName ?? metadata?.title
         let themeColor = manifest?.themeColor ?? metadata?.themeColor
-        let plateColor = NSColor(hex: themeColor ?? "")
-            ?? NSColor(hex: WrapIcon.tintHex(for: fallbackName))
-            ?? .systemBrown
+        let resolvedPlate = plate ?? IconPlate(colorHex:
+            BoostCSSGenerator.sanitizedColor(themeColor) ?? WrapIcon.tintHex(for: fallbackName))
 
         for candidate in IconCandidate.ranked(candidates).prefix(maximumAttempts) {
             guard let data = await fetchData(candidate.url),
@@ -92,7 +98,8 @@ struct SiteIconFetcher {
             guard edge >= minimumUsableEdge else { continue }
 
             return Outcome(icon: IconComposer.compose(artwork: image, style: style,
-                                                      plateColor: plateColor),
+                                                      plate: resolvedPlate),
+                           artwork: image,
                            sourceURL: candidate.url,
                            suggestedName: Self.cleanedName(siteName),
                            themeColorHex: themeColor,
@@ -100,7 +107,8 @@ struct SiteIconFetcher {
         }
 
         return Outcome(icon: IconComposer.monogram(WrapIcon.initials(for: fallbackName),
-                                                   plateColor: plateColor),
+                                                   plate: resolvedPlate),
+                       artwork: nil,
                        sourceURL: nil,
                        suggestedName: Self.cleanedName(siteName),
                        themeColorHex: themeColor,
@@ -110,14 +118,12 @@ struct SiteIconFetcher {
     /// Re-downloads one specific artwork URL — the "Refresh Icon" path, where the
     /// candidate is already known and there's no reason to crawl again.
     func icon(fromArtworkAt url: URL, fallbackName: String,
-              style: IconComposer.Style = .plate, plateColorHex: String? = nil) async -> NSImage? {
+              style: IconComposer.Style = .plate, plate: IconPlate? = nil) async -> NSImage? {
         guard let data = await fetchData(url), let image = NSImage(data: data), image.isValid else {
             return nil
         }
-        let plateColor = NSColor(hex: plateColorHex ?? "")
-            ?? NSColor(hex: WrapIcon.tintHex(for: fallbackName))
-            ?? .systemBrown
-        return IconComposer.compose(artwork: image, style: style, plateColor: plateColor)
+        let resolvedPlate = plate ?? IconPlate(colorHex: WrapIcon.tintHex(for: fallbackName))
+        return IconComposer.compose(artwork: image, style: style, plate: resolvedPlate)
     }
 
     // MARK: Transport

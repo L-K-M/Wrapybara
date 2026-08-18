@@ -118,6 +118,7 @@ final class WrapStore: ObservableObject {
         // offers that as a separate, explicit action.
         try? file.remove(at: AppSupport.runtimeConfigurationURL(forWrapID: wrapID))
         try? file.remove(at: AppSupport.iconURL(forWrapID: wrapID))
+        try? file.remove(at: AppSupport.artworkURL(forWrapID: wrapID))
         scheduleSave()
     }
 

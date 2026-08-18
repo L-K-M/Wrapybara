@@ -157,7 +157,7 @@ final class WrapExporter {
             return image
         }
         return IconComposer.monogram(WrapIcon.initials(for: wrap.name),
-                                     plateColor: IconComposer.plateColor(for: wrap.icon))
+                                     plate: IconPlate.resolved(for: wrap.icon))
     }
 
     /// Saves composed artwork for `wrap` so later builds (and the library list) reuse
@@ -168,6 +168,27 @@ final class WrapExporter {
             throw IcnsWriter.WriteError.renderFailed(Int(IconComposer.canvas))
         }
         try png.write(to: AppSupport.iconURL(forWrapID: wrap.id), options: [.atomic])
+    }
+
+    /// Saves the *raw* artwork, before any plate is drawn behind it, so a later
+    /// plate restyle can recompose without going back to the site or the file.
+    func saveArtwork(_ image: NSImage, for wrap: Wrap) throws {
+        try AppSupport.createDirectory(AppSupport.iconsDirectory)
+        guard let png = IcnsWriter.pngData(from: image, pixels: Int(IconComposer.canvas)) else {
+            throw IcnsWriter.WriteError.renderFailed(Int(IconComposer.canvas))
+        }
+        try png.write(to: AppSupport.artworkURL(forWrapID: wrap.id), options: [.atomic])
+    }
+
+    /// The raw artwork saved by `saveArtwork`, if there is any.
+    ///
+    /// Read straight from disk each time: this only feeds the occasional
+    /// recomposition after a plate edit, not a per-render path like
+    /// `resolvedIcon`, so it doesn't share the icon cache.
+    func artwork(for wrap: Wrap) -> NSImage? {
+        guard let data = try? Data(contentsOf: AppSupport.artworkURL(forWrapID: wrap.id)),
+              let image = NSImage(data: data), image.isValid else { return nil }
+        return image
     }
 
     // MARK: Post-build actions

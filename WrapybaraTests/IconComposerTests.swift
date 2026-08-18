@@ -43,7 +43,8 @@ final class IconComposerTests: XCTestCase {
     /// above and below the fitted artwork rather than the artwork filling the box.
     func testWideArtworkIsFittedNotSquashedOnThePlate() throws {
         let artwork = solidImage(width: 400, height: 100, color: .red)
-        let composed = IconComposer.compose(artwork: artwork, style: .plate, plateColor: .blue)
+        let composed = IconComposer.compose(artwork: artwork, style: .plate,
+                                            plate: IconPlate(colorHex: "#0000FF"))
         let rep = try bitmap(for: composed)
         // The sample coordinates below assume a 1024-pt canvas.
         XCTAssertEqual(composed.size, NSSize(width: 1024, height: 1024))
@@ -59,10 +60,37 @@ final class IconComposerTests: XCTestCase {
         XCTAssertGreaterThan(offArtwork.blueComponent, 0.5, "the plate should show through here")
     }
 
+    /// A pattern plate is flat two-tone, not a gradient: two paper bits sampled
+    /// near the top and bottom of the plate are the same colour, and an ink bit
+    /// reads against them.
+    func testPatternPlateRendersFlatTwoToneTiles() throws {
+        let artwork = solidImage(width: 400, height: 400, color: .red)
+        let plate = IconPlate(colorHex: "#CC4400", pattern: .bricks)
+        let composed = IconComposer.compose(artwork: artwork, style: .plate, plate: plate)
+        let rep = try bitmap(for: composed)
+
+        // Geometry: the plate spans 100…924, one pattern bit is 824/64 = 12.875 pt.
+        // Both paper samples are in bit column 1 — x ≈ 119 — at bit rows 9 and 54,
+        // where bricks have paper. They're equidistant from the vertical centre,
+        // so if the bitmap's y axis reads the other way the two simply swap.
+        let upperPaper = try XCTUnwrap(rep.colorAt(x: 119, y: 801))
+        let lowerPaper = try XCTUnwrap(rep.colorAt(x: 119, y: 222))
+        XCTAssertEqual(upperPaper.redComponent, lowerPaper.redComponent, accuracy: 0.03,
+                       "a pattern plate is flat — a gradient would drift between these")
+
+        // The ink sample sits on the plate's horizontal centreline, in the margin
+        // left of the artwork box. Bricks have mortar at column 2 whether the
+        // centreline reads as bit row 31 or 32, so the y-axis question is moot.
+        let ink = try XCTUnwrap(rep.colorAt(x: 132, y: 500))
+        XCTAssertGreaterThan(ink.redComponent, upperPaper.redComponent + 0.05,
+                             "the ink tone should read against the paper tone")
+    }
+
     /// The `.asIs` style letterboxes wide artwork instead of stretching it.
     func testAsIsStyleLetterboxesWideArtwork() throws {
         let artwork = solidImage(width: 400, height: 100, color: .red)
-        let composed = IconComposer.compose(artwork: artwork, style: .asIs, plateColor: .blue)
+        let composed = IconComposer.compose(artwork: artwork, style: .asIs,
+                                            plate: IconPlate(colorHex: "#0000FF"))
         let rep = try bitmap(for: composed)
         // The sample coordinates below assume a 1024-pt canvas.
         XCTAssertEqual(composed.size, NSSize(width: 1024, height: 1024))

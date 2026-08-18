@@ -49,6 +49,14 @@ enum AppSupport {
         iconsDirectory.appendingPathComponent("\(id.uuidString).png", isDirectory: false)
     }
 
+    /// The wrap's *un-composited* artwork, separate from the composed icon above.
+    /// Kept so restyling the plate (colour, pattern) can redraw the icon without
+    /// re-fetching or asking the user for the file again — the composed PNG has
+    /// the old plate baked in and can't be un-baked.
+    static func artworkURL(forWrapID id: UUID) -> URL {
+        iconsDirectory.appendingPathComponent("\(id.uuidString)-artwork.png", isDirectory: false)
+    }
+
     /// Creates `url`'s directory if it isn't there. Throwing rather than silent, so a
     /// save failure surfaces instead of losing the user's work quietly.
     static func createDirectory(_ url: URL) throws {

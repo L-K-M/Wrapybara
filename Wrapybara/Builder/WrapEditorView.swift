@@ -160,6 +160,29 @@ struct WrapEditorView: View {
                     .disabled(model.isFetchingIcon)
                     Button("Choose File…") { model.chooseIconFile(for: wrap) }
                 }
+
+                if model.preferences.iconStyle == .plate {
+                    // No opacity: a translucent plate would show the Dock through
+                    // itself, which reads as a broken icon rather than a choice.
+                    ColorPicker("Plate colour", selection: plateColourBinding,
+                                supportsOpacity: false)
+                    Picker("Plate pattern", selection: platePatternBinding) {
+                        Text("Gradient").tag(PlatePattern?.none)
+                        ForEach(PlatePattern.allCases) { pattern in
+                            Text(pattern.displayName).tag(PlatePattern?.some(pattern))
+                        }
+                    }
+                    if wrap.icon.plate != nil {
+                        Button("Use Automatic Plate") { model.updateIconPlate(nil, for: wrap) }
+                    }
+                    Text("The squircle the artwork sits on. Automatic takes the site's theme "
+                         + "colour when it offers one; picking anything here fixes it until "
+                         + "you change it again. Patterns are the classic Mac desktop tiles, "
+                         + "drawn flat in two tones of the plate colour — chunky pixels are "
+                         + "the point.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Bundle identifier") {
@@ -189,14 +212,41 @@ struct WrapEditorView: View {
         }
     }
 
+    /// The plate colour, materialising a custom plate from the automatic one the
+    /// first time the user touches the well.
+    private var plateColourBinding: Binding<Color> {
+        Binding(
+            get: { Color(hexString: IconPlate.resolved(for: wrap.icon).colorHex) },
+            set: { colour in
+                var plate = wrap.icon.plate ?? IconPlate(colorHex: wrap.icon.tintHex)
+                plate.colorHex = colour.hexString
+                model.updateIconPlate(plate, for: wrap)
+            })
+    }
+
+    /// The plate pattern: `nil` is the gradient, not the absence of a plate — a
+    /// colour picked earlier stays in force when the user goes back to gradient.
+    private var platePatternBinding: Binding<PlatePattern?> {
+        Binding(
+            get: { wrap.icon.plate?.pattern },
+            set: { pattern in
+                var plate = wrap.icon.plate ?? IconPlate(colorHex: wrap.icon.tintHex)
+                plate.pattern = pattern
+                model.updateIconPlate(plate, for: wrap)
+            })
+    }
+
     private func commitName() {
         let trimmed = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != wrap.name else { return }
         var updated = wrap
         updated.name = uniqueName(for: trimmed)
-        // Keep the monogram in step with a rename; artwork the user chose is left alone.
+        // Keep the monogram in step with a rename; artwork the user chose is left
+        // alone — and so is a plate they deliberately picked.
         if updated.icon.origin == .monogram {
-            updated.icon = .monogram(for: updated.name)
+            var monogrammed = WrapIcon.monogram(for: updated.name)
+            monogrammed.plate = updated.icon.plate
+            updated.icon = monogrammed
         }
         model.update(updated)
         // Show the disambiguated name (if one was needed) in the field itself, so
