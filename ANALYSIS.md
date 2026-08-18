@@ -38,8 +38,11 @@ those are **⌘N** and **⌘B**. The bug did not exist, and #16's diff would hav
 a working ⌘B and swapped the app's only ⌘N for Return. **If there's still something
 worth doing here** it's the opposite shape: give the builder a
 `CommandGroup(replacing: .newItem)` so ⌘N is a real menu command that works from the
-populated library too, and add `.keyboardShortcut(.defaultAction)` to the empty-state
-button *alongside* its ⌘N rather than instead of it.
+populated library too, and let the empty-state button take
+`.keyboardShortcut(.defaultAction)`. ⌘N survives as that menu command — not as a
+second shortcut on the button — and the button's own `.keyboardShortcut("n")` goes
+away with it, because two controls carrying one shortcut resolve to whichever the
+key-window-then-command-groups traversal reaches first.
 
 ### 🎨 P3 — an "everywhere" boost restyles the navigation error page
 With [#5](https://github.com/L-K-M/Wrapybara/pull/5) and
