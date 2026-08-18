@@ -30,6 +30,23 @@ final class BoostPreviewController: NSObject {
 
     var view: NSView { webController.webView }
 
+    /// The last pair actually applied, so unrelated SwiftUI renders can be skipped.
+    private var lastAppliedWrap: Wrap?
+    private var lastAppliedBoost: Boost?
+
+    /// Clears the dedup state so the next `apply` re-runs even for an unchanged
+    /// wrap/boost pair.
+    ///
+    /// A reload re-creates the page (and with it every runtime-injected style); the
+    /// skip guard would otherwise suppress the re-apply until the next edit. In
+    /// practice `installBoosts` re-runs from the navigation decision itself, so this
+    /// is belt-and-braces — but it makes the invariant local and obvious: after a
+    /// page transition, the next `apply` always does its work.
+    private func invalidateLastApplied() {
+        lastAppliedWrap = nil
+        lastAppliedBoost = nil
+    }
+
     // MARK: Contents
 
     /// A configuration carrying only the boost being edited.
@@ -50,12 +67,31 @@ final class BoostPreviewController: NSObject {
                                           generatedBy: "preview")
     }
 
-    func loadHome() { webController.loadHome() }
-    func reload() { webController.reload() }
+    func loadHome() {
+        webController.loadHome()
+        invalidateLastApplied()
+    }
+
+    func reload() {
+        webController.reload()
+        invalidateLastApplied()
+    }
 
     /// Re-applies an edited boost without reloading the page, so the scroll position and
     /// any signed-in state survive a slider drag.
+    ///
+    /// The preview's `updateNSView` runs on *every* SwiftUI render — name-field
+    /// typing, sheet toggles, unrelated selection changes included — and each apply
+    /// rebuilds the injector, clears the matcher cache, reinstalls user scripts and
+    /// evaluates JavaScript against the page. Nothing the preview shows changed in
+    /// those cases, so skip them; `Wrap` and `Boost` are both `Equatable`, which is
+    /// precisely the "did anything the preview applies change?" question.
     func apply(wrap: Wrap, boost: Boost) {
+        if lastAppliedWrap == wrap, lastAppliedBoost == boost {
+            return
+        }
+        lastAppliedWrap = wrap
+        lastAppliedBoost = boost
         webController.apply(Self.previewConfiguration(wrap: wrap, boost: boost))
     }
 
