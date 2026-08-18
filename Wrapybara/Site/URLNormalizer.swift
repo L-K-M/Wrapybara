@@ -70,6 +70,9 @@ enum URLNormalizer {
     static func suggestedName(for url: URL) -> String {
         var host = (url.host ?? "").lowercased()
         if host.hasPrefix("www.") { host.removeFirst(4) }
+        // An IPv6 literal has no useful label to offer — leave the name to the
+        // site (the caller falls back to the manifest/<title>, then "Web App").
+        if host.contains(":") { return "" }
         let labels = host.split(separator: ".").map(String.init)
         guard !labels.isEmpty else { return "" }
 
@@ -82,6 +85,21 @@ enum URLNormalizer {
         }
         guard index >= 0, index < labels.count else { return labels[0].capitalized }
         let label = labels[index]
-        return label.isEmpty ? "" : label.prefix(1).uppercased() + label.dropFirst()
+        guard !label.isEmpty else { return "" }
+        // Only dotted-decimal hosts are detected; hex/octal IPv4 shorthand
+        // ("0x7f.0.0.1") falls through to label-based naming — recorded as a
+        // conscious choice rather than an accident.
+        //
+        // Every label being ASCII digits is the real IP signal — TLDs are never
+        // numeric, so a mixed host like "163.com" still gets its label ("163"),
+        // while "192.168.1.1" is named honestly. (ASCII digits only: `isNumber`
+        // alone would also match non-ASCII numerics like ² or ٣, which can appear
+        // in IDN labels and say nothing about being an IP.)
+        if labels.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }) {
+            // `labels`, not the raw host: an FQDN-style trailing dot ("1.2.3.4.")
+            // is invisible to the label walk but would end the name in a stray dot.
+            return labels.joined(separator: ".")
+        }
+        return label.prefix(1).uppercased() + label.dropFirst()
     }
 }

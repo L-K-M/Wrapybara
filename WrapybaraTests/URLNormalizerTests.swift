@@ -96,6 +96,27 @@ final class URLNormalizerTests: XCTestCase {
         XCTAssertEqual(suggested("https://mail.proton.me"), "Proton")
         XCTAssertEqual(suggested("https://app.example.co.uk"), "Example")
         XCTAssertEqual(suggested("https://localhost:3000"), "Localhost")
+        // Single-label hosts keep the .capitalized fallback: intranet names like
+        // build-server read better than "Build-server".
+        XCTAssertEqual(suggested("http://build-server:8080"), "Build-Server")
+    }
+
+    func testSuggestedNameForIPAddresses() {
+        // An all-numeric label is an IP octet, and "1" is not an app name — the
+        // full address at least names the thing honestly.
+        XCTAssertEqual(suggested("http://192.168.1.1:8080"), "192.168.1.1")
+        XCTAssertEqual(suggested("http://127.0.0.1/admin"), "127.0.0.1")
+        // An IPv6 literal has no usable label at all; empty means "ask the site".
+        XCTAssertEqual(suggested("http://[::1]:3000"), "")
+        // FQDN-style trailing dots don't survive into the name.
+        XCTAssertEqual(suggested("http://1.2.3.4./"), "1.2.3.4")
+    }
+
+    func testSuggestedNameForNumericLabelDomains() {
+        // A numeric *label* alone doesn't make an IP — 163.com and 4399.com are
+        // real sites whose name is the number.
+        XCTAssertEqual(suggested("https://163.com"), "163")
+        XCTAssertEqual(suggested("https://4399.com"), "4399")
     }
 
     private func suggested(_ string: String) -> String {
