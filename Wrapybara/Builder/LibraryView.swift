@@ -135,7 +135,7 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Wrap a Site…") { model.sheet = .newWrap }
-                .keyboardShortcut("n")
+                .keyboardShortcut(.defaultAction)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)

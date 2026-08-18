@@ -89,7 +89,6 @@ struct WrapEditorView: View {
                         Text(wrap.installedAppPath == nil ? "Build App" : "Rebuild App")
                     }
                 }
-                .keyboardShortcut("b")
                 .disabled(model.isBuilding)
 
                 if let url = wrap.installedAppURL {
