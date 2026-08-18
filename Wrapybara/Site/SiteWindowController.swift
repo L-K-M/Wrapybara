@@ -15,10 +15,6 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
     private let behavior: WrapBehavior
     private let wrapName: String
 
-    /// Set while the element picker is running, so the result can be routed to
-    /// whoever asked for it.
-    var onPickedSelector: ((String) -> Void)?
-
     /// Called when this window's web view wants a new tab.
     var onOpenInNewTab: ((URL, SiteWindowController) -> Void)?
     /// Called when a popup needs a window of its own to load into.
@@ -219,10 +215,6 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
-    @objc func beginPickingElement(_ sender: Any?) {
-        webController.beginPickingElement()
-    }
-
     @objc func toggleBoostsInfo(_ sender: Any?) {
         guard let window else { return }
         let alert = NSAlert()
@@ -350,8 +342,10 @@ extension SiteWindowController: SiteWebControllerDelegate {
     }
 
     func siteWebController(_ controller: SiteWebController, didPickSelector selector: String) {
-        onPickedSelector?(selector)
-        onPickedSelector = nil
+        // The element picker is armed from Wrapybara's boost editor, whose preview
+        // web view is driven by `BoostPreviewController` — a site app has no editor
+        // to hand a selection to, so a pick here means the page-side picker was
+        // somehow started anyway and there is nothing to do with the result.
     }
 
     func siteWebController(_ controller: SiteWebController,
