@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// How the squircle behind a wrap's artwork is painted: a colour, and optionally
@@ -35,7 +36,13 @@ struct IconPlate: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.colorHex = c.value(.colorHex, or: WrapIcon.defaultTintHex)
+        // A colour that isn't a colour costs only this field, not the icon: the
+        // plate drops to the default tint rather than carrying a string the
+        // composer would have to second-guess at draw time. Wrong *types* are
+        // already swallowed by `value(_:or:)`; this catches well-typed junk like
+        // `"octarine"`.
+        let stored = c.value(.colorHex, or: WrapIcon.defaultTintHex)
+        self.colorHex = NSColor(hex: stored) != nil ? stored : WrapIcon.defaultTintHex
         // A pattern name this build doesn't know — from the future, or mistyped
         // by hand — drops to the gradient rather than failing the whole icon.
         self.pattern = c.optional(.pattern)
