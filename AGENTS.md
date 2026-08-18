@@ -21,8 +21,9 @@ engine evaluation; `README.md` for the user view.
   `DispatchSource` vnode watching, `PropertyListSerialization`, `/usr/bin/codesign`
   via `Process`.
 - **Persistence:** JSON under `~/Library/Application Support/Wrapybara/`
-  (`library.json`, `Runtime/<uuid>.json`, `Icons/<uuid>.png`); app-level settings in
-  `UserDefaults`.
+  (`library.json`, `Runtime/<uuid>.json`, `Icons/<uuid>.png` plus the
+  un-composited `Icons/<uuid>-artwork.png` the plate restyler recomposes from);
+  app-level settings in `UserDefaults`.
 - **Dependencies:** none. Keep it that way.
 - **Min target:** macOS 13 (Ventura). **Built with Xcode 16+**
   (file-system-synchronized groups, `NavigationSplitView`, `LabeledContent`).
@@ -90,7 +91,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
 - **Keep the decidable parts pure.** `BoostMatcher`, `BoostCSSGenerator`,
   `NavigationPolicy`, `BadgeFromTitle`, `AppNameSanitizer`,
   `BundleIdentifierGenerator`, `InfoPlistBuilder`, `SiteMarkupParser`,
-  `URLNormalizer` and `IconCandidate.ranked` take values and return values. That's
+  `URLNormalizer`, `IconCandidate.ranked` and `PlatePattern` take values and
+  return values. That's
   what makes the whole feature set testable without a web view, and it is the single
   most important convention here. Don't reach for `NSWorkspace` or `Bundle.main` from
   any of them.
@@ -157,7 +159,10 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   `BoostMatcher.clearCache()` in `setUp`.
 - Manually verify: building into `/Applications` and `~/Applications`; a wrap of a
   site with SSO on another domain; a `target="_blank"` link; a PDF download; ⌘F, ⌘T,
-  ⌘L, ⌘P; quitting and reopening (session restore); editing a boost while the built
+  ⌘L, ⌘P; quitting and reopening (session restore); a wrap with *No chrome* — the
+  window must drag from the top strip (including from an unfocused state),
+  double-click there must follow the system title-bar setting, and no document
+  proxy icon may appear next to the title; editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
   *and animating* while another app's window covers it, and that catches up without

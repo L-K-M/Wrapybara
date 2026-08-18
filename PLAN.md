@@ -87,30 +87,46 @@ Mozilla has had no supported embedding API since the XULRunner/`GeckoEmbed` era 
 retired. GeckoView is Android-only. Embedding Gecko on macOS today means forking
 Firefox, which is not a foundation for a small utility.
 
-### Servo — genuinely interesting, not yet
+### Servo — genuinely interesting, still not ready for this app
 
-Servo shipped **0.1.0 to crates.io in April 2026**, with a real embedding API
-(`ServoBuilder`, a `WebView` handle, navigation and input on the handle, pixel
-readback for headless use) and macOS among its supported platforms. That is a
-material change from a year earlier, and it is the first credible non-WebKit,
-non-Chromium option in a decade.
+Re-checked August 2026: Servo is up to **0.5.0 on crates.io** (0.1.0 landed in
+April 2026), developed on 64-bit macOS among other platforms, with the embedder
+surface split into a `servo` crate and `servo-embedder-traits`. The trajectory is
+real and encouraging. The embedding *shape*, though, is the same as it was, and
+it collides with this project's design at three specific points:
 
-It is still not the right engine for **this** app's v1:
+- **It isn't an `NSView`.** Servo renders through WebRender and expects the
+  embedder to provide the windowing and event loop — servoshell does it with
+  `winit`. Hosting that inside Wrapybara's `NSWindow`/toolbar/native-tabs model
+  means either a child window (which breaks the title bar, tabs and find bar that
+  make a wrap feel native) or compositing an offscreen buffer into a `CALayer`
+  and re-plumbing input, IME, drag-and-drop and gestures by hand — re-implementing
+  exactly what WebKit already gives, and never quite right.
+- **Per-app isolation is ours to build.** A wrap's cookies and storage are keyed
+  by its bundle identifier today, for free. Servo's embedding API has no
+  equivalent of that per-app data-store story, so each wrap's session would be a
+  storage path we manage ourselves.
+- **It breaks the size and signing model.** The runtime inside every generated
+  app is a byte copy of Wrapybara's own few-megabytes binary. A Servo wrap would
+  need the engine (on the order of a hundred megabytes, plus a Rust build in CI
+  and this project's first dependency) copied into the bundle, stripped of
+  quarantine and signed alongside the executable — a different bundle layout per
+  engine, not a per-wrap toggle in today's writer.
 
-- Web-platform coverage isn't there yet for the kind of sites people wrap (rich
-  editors, video conferencing, drag-and-drop file uploads).
-- None of the native integration above comes with it — Keychain autofill, the share
-  sheet, Look Up, system media controls would all have to be built or done without.
-- Wrapybara would be back in the business of shipping an engine, including its
-  security fixes.
+Add the standing costs — web-platform coverage still short of the rich sites
+people wrap (and media only via an optional GStreamer dependency), and the
+security-patch obligation moving from the OS to us — and the honest answer to a
+per-wrap engine picker remains "not yet".
 
 **The plan is to keep the door open, not to walk through it now.** The runtime's
 web-view usage is deliberately funnelled through `SiteWebViewFactory`,
 `SiteWebController` and `BoostInjector`; a second backend means implementing that
 surface, not rewriting the app. Boosts are already expressed as CSS text and
-selectors rather than as WebKit calls, so they port unchanged. Phase 6 below is a
-Servo backend behind a per-wrap engine setting, revisited when Servo's platform
-coverage makes it honest.
+selectors rather than as WebKit calls, so they port unchanged. The first real
+step, when Servo's platform coverage makes it honest, is a standalone spike —
+libservo rendering one URL into a `CALayer` in a throwaway app — *before* any
+surgery here, and Phase 6 below is the per-wrap engine setting that would
+surface it.
 
 ---
 
@@ -241,7 +257,10 @@ Not one feature — the absence of twenty small failures.
 - **Icon.** Site artwork is *composed* onto a macOS-proportioned rounded plate
   (824/1024, Apple's grid) with a gradient and a hairline, at all ten slots
   including every `@2x`. Or used as-is, if the user prefers. Or a monogram on a
-  tinted plate derived from the site's own `theme-color`.
+  tinted plate derived from the site's own `theme-color`. The plate is the user's
+  to restyle: any colour, or one of the classic 8×8 Mac desktop tiles drawn flat
+  in two tones of it (`PlatePattern`). The raw artwork is kept on disk next to
+  the composed icon, so restyling never means re-fetching.
 - **Menu bar.** App / File / Edit / View / History / Window / Help, every item
   wired: ⌘L, ⌘F with ⌘G and ⇧⌘G, ⌘R and ⇧⌘R, ⌘0 / ⌘+ / ⌘−, ⌘[ and ⌘], ⌘P, Share,
   Services, Spelling, Merge All Windows. The Edit menu is not optional — without it
@@ -249,6 +268,12 @@ Not one feature — the absence of twenty small failures.
 - **Native tabs.** `NSWindow` tabbing with the wrap's bundle identifier as the
   tabbing identifier, so AppKit's tab bar, tab overview and Window-menu items all
   work.
+- **Chrome is a choice, and every choice stays a window.** Toolbar, title bar
+  only, or no chrome — the last runs the page edge to edge under a transparent
+  title bar with the traffic lights floating over it, and a transparent strip
+  across the top keeps the window draggable (double-click there zooms, per the
+  system setting). The window gets no document proxy icon: a page URL isn't a
+  file, and `representedURL` would offer a drag bound to fail.
 - **Find.** WebKit's own `find(_:configuration:)`, so it's the same search Safari
   does, with WebKit's highlighting and scroll-into-view.
 - **Downloads.** `WKDownload` into `~/Downloads` with a published `Progress` (Dock
@@ -332,8 +357,8 @@ Wrapybara/
   WrapybaraApp.swift        @main; dispatches on LaunchMode
   LaunchMode.swift          builder or site, decided from Info.plist
   Model/                    Wrap, WrapBehavior, Boost, BoostMatch, BoostTheme,
-                            WrapIcon, WrapConfiguration, WrapLibrary, Preferences,
-                            ColorHex, DecodingDefaults
+                            WrapIcon, IconPlate, WrapConfiguration, WrapLibrary,
+                            Preferences, ColorHex, DecodingDefaults
   Boosts/                   BoostMatcher, BoostCSSGenerator, BoostInjector,
                             BoostScripts (the injected JS)
   Store/                    AppSupport (paths), JSONFileStore, WrapStore
@@ -341,7 +366,7 @@ Wrapybara/
                             CodeSigner, WrapExporter, AppNameSanitizer,
                             BundleIdentifierGenerator, ExtendedAttributes
   Icons/                    SiteMarkupParser, SiteIconFetcher, IconCandidate,
-                            IconComposer
+                            IconComposer, PlatePattern
   Site/                     SiteAppDelegate, SiteWindowController,
                             SiteWebController, SiteWebViewFactory, SiteMenuBuilder,
                             NavigationPolicy, URLNormalizer, DownloadCoordinator,
@@ -386,7 +411,10 @@ Sparkle or the existing updater with signature verification.
 **Phase 6 — a second engine.** A `SiteWebViewFactory` sibling backed by Servo,
 behind a per-wrap engine setting, revisited when Servo's platform coverage makes it
 honest. Boosts port unchanged because they are CSS text and selectors, not WebKit
-calls.
+calls. The §2 blockers are the gate: NSView-less hosting, per-wrap storage
+isolation, and a bundle layout that has to carry the engine into every generated
+app. The spike comes first; the setting ships only behind a backend that passes
+the manual verification list.
 
 ---
 
