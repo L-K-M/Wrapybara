@@ -56,6 +56,40 @@ final class PlatePatternTests: XCTestCase {
         }
     }
 
+    /// The second set of tiles each have one defining property worth pinning
+    /// individually: the verticals' pitch, the check's quadrants, the wale's
+    /// wobble, and the pyramids' baseline.
+    func testNewTilesHaveTheirDefiningGeometry() {
+        // Pinstripes: ink exactly where column % 4 == 0, on every row.
+        for row in 0 ..< PlatePattern.edge {
+            for column in 0 ..< PlatePattern.edge {
+                XCTAssertEqual(PlatePattern.pinstripes.bit(column: column, row: row),
+                               column % 4 == 0)
+            }
+        }
+        // Gingham: ink iff the column and the row fall in the same half.
+        for row in 0 ..< PlatePattern.edge {
+            for column in 0 ..< PlatePattern.edge {
+                XCTAssertEqual(PlatePattern.gingham.bit(column: column, row: row),
+                               (column < 4) == (row < 4))
+            }
+        }
+        // Corduroy: every second row is the row above shifted one column left —
+        // that's the wobble that makes it wale rather than stripe.
+        for row in 0 ..< PlatePattern.edge where row % 2 == 1 {
+            for column in 0 ..< PlatePattern.edge {
+                XCTAssertEqual(PlatePattern.corduroy.bit(column: column, row: row),
+                               PlatePattern.corduroy.bit(column: column + 1, row: row - 1))
+            }
+        }
+        // Pyramids: a solid baseline, and nothing above it at the gap columns.
+        for column in 0 ..< PlatePattern.edge {
+            XCTAssertTrue(PlatePattern.pyramids.bit(column: column, row: 7))
+        }
+        XCTAssertTrue(PlatePattern.pyramids.bit(column: 0, row: 6))
+        XCTAssertFalse(PlatePattern.pyramids.bit(column: 4, row: 6))
+    }
+
     func testMalformedArtLinesAreTruncatedOrPadded() {
         // The shipped constants are all well-formed (the geometry tests above);
         // this pins the parser's lenience so a future editing slip degrades to a

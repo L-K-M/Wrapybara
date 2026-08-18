@@ -26,6 +26,23 @@ enum PlatePattern: String, Codable, CaseIterable, Identifiable {
     case stripes
     /// A plain lattice grid.
     case lattice
+    /// Vertical 1-pixel lines every four — the dress-shirt pinstripe.
+    case pinstripes
+    /// One ruled line every four pixels, like notebook paper.
+    case ruled
+    /// 4×4 two-tone blocks — the picnic-blanket check.
+    case gingham
+    /// Three-pixel wales that wobble one pixel row to row — wide-wale corduroy.
+    /// Recovered from a System 7 wallpaper set.
+    case corduroy
+    /// Staggered plus signs, offset by half a period each way.
+    case crosses
+    /// Sparse scattered pixels — the quietest option. Recovered from a System 7
+    /// wallpaper set.
+    case speckle
+    /// Triangles rising off a shared baseline. Recovered from a System 7
+    /// wallpaper set.
+    case pyramids
 
     var id: String { rawValue }
 
@@ -38,6 +55,13 @@ enum PlatePattern: String, Codable, CaseIterable, Identifiable {
         case .diamonds: return "Diamonds"
         case .stripes: return "Diagonal Stripes"
         case .lattice: return "Lattice"
+        case .pinstripes: return "Pinstripes"
+        case .ruled: return "Ruled Lines"
+        case .gingham: return "Gingham"
+        case .corduroy: return "Corduroy"
+        case .crosses: return "Crosses"
+        case .speckle: return "Speckle"
+        case .pyramids: return "Pyramids"
         }
     }
 
@@ -156,6 +180,87 @@ enum PlatePattern: String, Codable, CaseIterable, Identifiable {
                 "..#...#.",
                 "..#...#.",
                 "..#...#.",
+                "########",
+            ]
+        case .pinstripes:
+            return [
+                "#...#...",
+                "#...#...",
+                "#...#...",
+                "#...#...",
+                "#...#...",
+                "#...#...",
+                "#...#...",
+                "#...#...",
+            ]
+        case .ruled:
+            return [
+                "########",
+                "........",
+                "........",
+                "........",
+                "########",
+                "........",
+                "........",
+                "........",
+            ]
+        case .gingham:
+            return [
+                "####....",
+                "####....",
+                "####....",
+                "####....",
+                "....####",
+                "....####",
+                "....####",
+                "....####",
+            ]
+        case .corduroy:
+            return [
+                "###.###.",
+                ".###.###",
+                "###.###.",
+                ".###.###",
+                "###.###.",
+                ".###.###",
+                "###.###.",
+                ".###.###",
+            ]
+        case .crosses:
+            // The two pluses sit half a period apart each way, so none touches an
+            // edge and the tile wraps without a seam.
+            return [
+                ".#......",
+                "###.....",
+                ".#......",
+                "........",
+                "....#...",
+                "...###..",
+                "....#...",
+                "........",
+            ]
+        case .speckle:
+            return [
+                "........",
+                "........",
+                ".#....#.",
+                "........",
+                "....#...",
+                "........",
+                "..#....#",
+                "#....#..",
+            ]
+        case .pyramids:
+            // The filled bottom row merges with the next tile's into one
+            // continuous baseline the triangles rise from.
+            return [
+                "........",
+                "........",
+                "........",
+                "........",
+                "........",
+                "##......",
+                "####....",
                 "########",
             ]
         }
