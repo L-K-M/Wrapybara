@@ -14,46 +14,14 @@ whose remaining findings live here and whose implemented findings are now on `ma
 
 ---
 
-## In flight — still-open PRs (do not duplicate)
+## In flight — open PRs (do not duplicate)
 
-The twenty-three changes that came out of the glm and k3 reviews have been reviewed
-and merged, except one. What is still open:
-
-| PR | Branch | State |
-| --- | --- | --- |
-| [#16](https://github.com/L-K-M/Wrapybara/pull/16) | `fix/bare-key-shortcuts` | **Not merged — premise refuted.** Needs a maintainer call: reshape it as "the ⌘N/⌘B shortcuts were never bare keys" below describes, or close it. |
-
-`#2`–`#15` and `#17`–`#24` are on `main`.
+None. All twenty-three changes from the glm and k3 reviews (`#2`–`#24`) are on
+`main`.
 
 ---
 
 ## Bugs
-
-### 🐛 P3 — the ⌘N/⌘B shortcuts were never bare keys
-`ANALYSIS.md` and [#16](https://github.com/L-K-M/Wrapybara/pull/16) both claimed
-`LibraryView.swift`'s `.keyboardShortcut("n")` and `WrapEditorView.swift`'s
-`.keyboardShortcut("b")` fired on ordinary typing. They don't: SwiftUI's
-`keyboardShortcut(_:modifiers:)` declares `modifiers: EventModifiers = .command`, so
-those are **⌘N** and **⌘B**. The bug did not exist, and #16's diff would have deleted
-a working ⌘B and swapped the app's only ⌘N for Return. **If there's still something
-worth doing here** it's the opposite shape: give the builder a
-`CommandGroup(replacing: .newItem)` so ⌘N is a real menu command that works from the
-populated library too, and let the empty-state button take
-`.keyboardShortcut(.defaultAction)`. ⌘N survives as that menu command — not as a
-second shortcut on the button — and the button's own `.keyboardShortcut("n")` goes
-away with it, because two controls carrying one shortcut resolve to whichever the
-key-window-then-command-groups traversal reaches first.
-
-### 🎨 P3 — an "everywhere" boost restyles the navigation error page
-With [#5](https://github.com/L-K-M/Wrapybara/pull/5) and
-[#24](https://github.com/L-K-M/Wrapybara/pull/24) both landed, the two interact:
-`didFail` strips the user scripts and loads the error page, then #5's new `didFinish`
-hook sees `boostedURL != webView.url` (it's `about:blank` now) and calls
-`installBoosts(for:)` + `reapplyStylesheet(for:)`. A boost scoped to *everywhere* —
-the Dark preset, say — therefore repaints the recovery screen #24 deliberately left
-unstyled. Cosmetic, never a crash, and the Try Again link keeps working. **Fix:** skip
-the `didFinish` re-install when the URL is `about:blank`, the same carve-out #24
-already makes in `decidePolicyFor`.
 
 ### 🐛 P2 — notification clicks route to whichever window is front
 `SiteAppDelegate.handleNotificationClick(pageID:)` evaluates
@@ -335,6 +303,17 @@ heavy site looks frozen. `BoostPreviewController` already receives
 in the status bar is the whole fix. Fold the preview-downloads quiet mode (🐛P2 above)
 into the same pass. (k3 K26.)
 
+### 🎨 P3 — an "everywhere" boost restyles the navigation error page
+With [#5](https://github.com/L-K-M/Wrapybara/pull/5) and
+[#24](https://github.com/L-K-M/Wrapybara/pull/24) both landed, the two interact:
+`didFail` strips the user scripts and loads the error page, then #5's new `didFinish`
+hook sees `boostedURL != webView.url` (it's `about:blank` now) and calls
+`installBoosts(for:)` + `reapplyStylesheet(for:)`. A boost scoped to *everywhere* —
+the Dark preset, say — therefore repaints the recovery screen #24 deliberately left
+unstyled. Cosmetic, never a crash, and the Try Again link keeps working. **Fix:** skip
+the `didFinish` re-install when the URL is `about:blank`, the same carve-out #24
+already makes in `decidePolicyFor`.
+
 ---
 
 ## UX, convenience, delight
@@ -449,6 +428,15 @@ not tabs — with native tabs, two tabs in one window get no confirm.
 - The notification trust model for imported scripts (untrusted until read).
 - The find bar via WebKit's own `find`; the Smart-Invert-style media counter-filter.
 - The selector ladder that rejects framework-generated identifiers.
+- ⌘N and ⌘B are **AppKit menu items** in `BuilderMenuBuilder.fileMenu` ("New Wrap…",
+  "Build Selected Wrap"), not SwiftUI commands — there is no `App`/`Scene` in this
+  project, so there is no `.commands` builder and `CommandGroup` doesn't apply. Don't
+  re-add `.keyboardShortcut("n")`/`("b")` to the SwiftUI buttons: a control in the key
+  window shadows the menu item ("the first one found is used"), which is what #16
+  removed. Note for anyone re-reading the source reviews: glm/k3 called these "bare"
+  shortcuts that fired on ordinary typing. They never did —
+  `keyboardShortcut(_:modifiers:)` defaults `modifiers` to `.command`. #16 was right
+  to delete them, for the duplication, not for that.
 - The error page's guarantees: escaped interpolation, web-only retry targets,
   boosts stripped so the recovery screen stays legible (see #24's thread for the
   reasoning — the trade-offs were litigated in review).
