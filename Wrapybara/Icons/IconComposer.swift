@@ -53,7 +53,8 @@ enum IconComposer {
                 drawPlate(color: plateColor)
                 let artworkEdge = plateEdge * artworkFraction
                 let origin = (canvas - artworkEdge) / 2
-                artwork.draw(in: NSRect(x: origin, y: origin, width: artworkEdge, height: artworkEdge),
+                let box = NSRect(x: origin, y: origin, width: artworkEdge, height: artworkEdge)
+                artwork.draw(in: aspectFit(size: artwork.size, in: box),
                              from: .zero, operation: .sourceOver, fraction: 1)
                 return true
             }
@@ -111,13 +112,40 @@ enum IconComposer {
     ///
     /// A fetched favicon can arrive as a multi-representation ICO or an SVG-backed
     /// image; drawing it once into a known-size canvas gives everything downstream
-    /// one predictable representation to work with.
+    /// one predictable representation to work with. Non-square images are
+    /// aspect-fitted and centered, leaving transparent bands where the image
+    /// doesn't fill the square — the only caller is `.asIs` artwork composition,
+    /// where that's the point; a caller needing edge-to-edge coverage shouldn't
+    /// route through here.
     static func redraw(_ image: NSImage, edge: CGFloat) -> NSImage {
-        NSImage(size: NSSize(width: edge, height: edge), flipped: false) { _ in
-            image.draw(in: NSRect(x: 0, y: 0, width: edge, height: edge),
+        let canvasRect = NSRect(x: 0, y: 0, width: edge, height: edge)
+        return NSImage(size: NSSize(width: edge, height: edge), flipped: false) { _ in
+            image.draw(in: aspectFit(size: image.size, in: canvasRect),
                        from: .zero, operation: .sourceOver, fraction: 1)
             return true
         }
+    }
+
+    /// The largest rect of `size`'s aspect ratio that fits inside `bounds`, centered.
+    ///
+    /// Artwork is fitted, never stretched: a wide or tall logo squashed into a square
+    /// reads far worse than the transparent bands letterboxing leaves. A degenerate
+    /// (zero) size falls back to the full bounds — the one stretch path left, since
+    /// there is no aspect to preserve.
+    static func aspectFit(size: NSSize, in bounds: NSRect) -> NSRect {
+        guard size.width > 0, size.height > 0 else { return bounds }
+        let scale = min(bounds.width / size.width, bounds.height / size.height)
+        let fitted = NSSize(width: size.width * scale, height: size.height * scale)
+        // Whole points keep the edges crisp, but round to nearest rather than
+        // `.integral`: integral rects only ever grow, and up to ~1 pt of growth per
+        // axis is a visible aspect change at the small icns sizes (a 5:1 wordmark
+        // fitted into 16×16 wants 16×3, not 16×4).
+        let width = max(fitted.width.rounded(), 1)
+        let height = max(fitted.height.rounded(), 1)
+        return NSRect(x: bounds.minX + ((bounds.width - width) / 2).rounded(),
+                      y: bounds.minY + ((bounds.height - height) / 2).rounded(),
+                      width: width,
+                      height: height)
     }
 
     /// The plate colour for a wrap: its stored tint, or Wrapybara's brown.
