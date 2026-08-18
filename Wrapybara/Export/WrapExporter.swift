@@ -28,6 +28,27 @@ final class WrapExporter {
     private let preferences: Preferences
     private let writer: AppBundleWriter
 
+    /// Composed artwork, cached per wrap.
+    ///
+    /// `resolvedIcon(for:)` is called for every row of the library sidebar on every
+    /// SwiftUI render — which is every keystroke in any editor field. Without a cache
+    /// that's a disk read and a PNG decode per row per render. The key carries the
+    /// wrap's `updatedAt`, so any edit that changes the artwork (a fetch, a picked
+    /// file, a rename that changes the monogram) lands under a new key. `NSCache`
+    /// evicts under memory pressure with no bookkeeping of our own; the count limit
+    /// bounds the growth those `updatedAt`-churned keys could otherwise achieve in a
+    /// very long session — a wrap's icons are a few hundred kilobytes each, so 256
+    /// entries is generous and still trivial memory.
+    private let iconCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 256
+        // Cost is the decoded bitmap's byte footprint (see `setObject(…cost:)`
+        // below), so this is a real memory budget: 128 MB is far past any legitimate
+        // library and cheap enough to give away.
+        cache.totalCostLimit = 128 * 1024 * 1024
+        return cache
+    }()
+
     init(store: WrapStore,
          preferences: Preferences = .shared,
          writer: AppBundleWriter = AppBundleWriter()) {
@@ -120,10 +141,19 @@ final class WrapExporter {
     /// otherwise a freshly drawn monogram.
     ///
     /// Never returns `nil` — an app with no icon at all shows the generic blank page
-    /// in the Dock, which is a worse outcome than initials on a plate.
+    /// in the Dock, which is a worse outcome than initials on a plate. The returned
+    /// instance is shared from a cache across callers — treat it as immutable.
     func resolvedIcon(for wrap: Wrap) -> NSImage {
+        let key = "\(wrap.id.uuidString)|\(wrap.updatedAt.timeIntervalSince1970)" as NSString
+        if let cached = iconCache.object(forKey: key) { return cached }
         let url = AppSupport.iconURL(forWrapID: wrap.id)
         if let data = try? Data(contentsOf: url), let image = NSImage(data: data), image.isValid {
+            // Cost is the decoded bitmap's footprint, not the PNG's byte count —
+            // the cache bounds memory, and a 1024 RGBA decode is ~4 MB against a
+            // few hundred KB on disk. RGBA at 4 bytes/pixel is an approximation,
+            // and the right one to approximate with.
+            let cost = image.representations.reduce(0) { $0 + $1.pixelsWide * $1.pixelsHigh * 4 }
+            iconCache.setObject(image, forKey: key, cost: cost)
             return image
         }
         return IconComposer.monogram(WrapIcon.initials(for: wrap.name),
