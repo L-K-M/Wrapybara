@@ -287,7 +287,10 @@ final class CodableModelTests: XCTestCase {
     }
 
     func testAnUnknownPatternNameDropsToTheGradient() throws {
-        let plate = try decode(IconPlate.self, #"{"colorHex":"#CC4400","pattern":"houndstooth"}"#)
+        // `##` for the same reason as the monogram fixture above: a hex value
+        // starting with `#` puts the `#"…"#` terminator inside the string.
+        let plate = try decode(IconPlate.self,
+                              ##"{"colorHex":"#CC4400","pattern":"houndstooth"}"##)
         XCTAssertNil(plate.pattern)
     }
 }
