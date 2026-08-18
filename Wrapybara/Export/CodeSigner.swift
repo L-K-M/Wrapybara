@@ -72,10 +72,17 @@ enum CodeSigner {
             // keeps this correct if a future wrap embeds a helper.
             "--deep",
             "--sign", identity,
-            // Timestamps need the network and a real identity; ad-hoc signatures
-            // can't carry one, and a wrap built on a plane should still build.
-            "--timestamp=none",
         ]
+        if identity == adHocIdentity {
+            // Timestamps need the network and a real identity; an ad-hoc signature
+            // can't carry one, and a wrap built on a plane should still build.
+            arguments.append("--timestamp=none")
+        } else {
+            // A Developer ID signature keeps a secure timestamp — explicit rather
+            // than relying on the toolchain default, per Apple's notarization
+            // guidance. This is the step that touches the network.
+            arguments.append("--timestamp")
+        }
         if let entitlements {
             arguments.append(contentsOf: ["--entitlements", entitlements.path])
         }
