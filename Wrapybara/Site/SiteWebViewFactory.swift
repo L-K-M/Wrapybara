@@ -209,8 +209,6 @@ enum SiteWebViewFactory {
     private static let inspectorHandleKey = "_inspector"
     private static let inspectorVisibilityKey = "isVisible"
     private static let showInspectorSelector = NSSelectorFromString("show")
-    /// The same operation under its older name — answered by older WebKit builds.
-    private static let connectInspectorSelector = NSSelectorFromString("connect")
     private static let hideInspectorSelector = NSSelectorFromString("hide")
 
     /// Writes the wrap's inspector permission onto a web view.
@@ -249,11 +247,13 @@ enum SiteWebViewFactory {
 
     /// Whether raising the inspector can possibly work here.
     ///
-    /// The View menu asks before validating its item, so a WebKit that has retired
-    /// `_inspector` greys the entry out instead of offering a button that does
-    /// nothing.
+    /// The View menu asks before validating its item, so a WebKit missing the
+    /// machinery greys the entry out instead of offering a button that does
+    /// nothing — and what it checks is exactly what `toggleInspector` will call.
     static func canToggleInspector(of webView: WKWebView) -> Bool {
-        inspectorObject(of: webView) != nil
+        guard let inspector = inspectorObject(of: webView) else { return false }
+        return inspector.responds(to: showInspectorSelector)
+            || inspector.responds(to: hideInspectorSelector)
     }
 
     /// Raises the inspector — or lowers it when already showing, the way Safari's
@@ -267,10 +267,11 @@ enum SiteWebViewFactory {
         }
 
         let selector = isInspectorVisible(inspector)
-            ? hideInspectorSelector
-            : (inspector.responds(to: showInspectorSelector)
-               ? showInspectorSelector : connectInspectorSelector)
-        guard inspector.responds(to: selector) else { return false }
+            ? hideInspectorSelector : showInspectorSelector
+        guard inspector.responds(to: selector) else {
+            logger.warning("WebKit's inspector no longer answers \(NSStringFromSelector(selector), privacy: .public); Show Web Inspector cannot toggle")
+            return false
+        }
         inspector.perform(selector)
         return true
     }
