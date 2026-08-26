@@ -80,6 +80,7 @@ final class SiteWindowTests: XCTestCase {
     /// answer visible — that is the whole point of `SiteWindow`.
     func testOrderedOutSiteWindowStillReportsVisible() {
         let window = makeSiteWindow()
+        defer { window.close() }
         window.orderFrontRegardless()
         window.orderOut(nil)
         XCTAssertTrue(window.isVisible)
@@ -104,7 +105,8 @@ final class SiteWindowTests: XCTestCase {
 
         let selected = makeSiteWindow()
         let background = makeSiteWindow()
-        background.tabbingIdentifier = selected.tabbingIdentifier
+        selected.tabbingIdentifier = "site-tab-pair"
+        background.tabbingIdentifier = "site-tab-pair"
         selected.orderFrontRegardless()
         selected.addTabbedWindow(background, ordered: .below)
         defer {
@@ -120,7 +122,8 @@ final class SiteWindowTests: XCTestCase {
         // premise having moved out from under it.
         let plainSelected = makePlainWindow()
         let plainBackground = makePlainWindow()
-        plainBackground.tabbingIdentifier = plainSelected.tabbingIdentifier
+        plainSelected.tabbingIdentifier = "plain-tab-pair"
+        plainBackground.tabbingIdentifier = "plain-tab-pair"
         plainSelected.orderFrontRegardless()
         plainSelected.addTabbedWindow(plainBackground, ordered: .below)
         defer {
