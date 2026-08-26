@@ -340,16 +340,17 @@ Not one feature — the absence of twenty small failures.
   undocumented WebKit keys set via KVC — fine under Developer ID distribution, but
   re-review before any Mac App Store submission.
 
-  **What the occlusion switch cannot reach:** a *miniaturised* window, one hidden
-  with ⌘H, and a native tab sitting behind the selected one. All three make
-  `NSWindow.isVisible` false — which WebKit checks before it ever consults
-  occlusion, and no embedder switch reaches that check. A miniaturised window is
-  the trap: its app stays frontmost, menu bar and all, so the freeze reads as
-  "stopped updating even in the foreground". The window answers for itself instead:
-  site-app windows are `SiteWindow`, which reports visible for as long as the app
-  owns it and goes back to the honest answer once its close begins (AppKit's
-  quit-on-last-close and Dock-reopen logic consult visibility too). Same battery
-  trade-off as a covered window, same reasoning.
+  **What the occlusion switch cannot reach:** a window hidden with ⌘H, and a
+  native tab sitting behind the selected one. Both make `NSWindow.isVisible` false
+  — which WebKit checks before it ever consults occlusion, and no embedder switch
+  reaches that check — while the app itself is still frontmost, so the freeze reads
+  as "stopped updating even in the foreground". The window answers for itself
+  instead: site-app windows are `SiteWindow`, which reports visible for as long as
+  the app owns it and goes back to the honest answer once its close begins (AppKit's
+  quit-on-last-close and Dock-reopen logic consult visibility too). A miniaturised
+  window needs none of this: it stays ordered in, `isVisible` keeps answering yes,
+  and its page is kept up by the occlusion switch above. Same battery trade-off
+  throughout, same reasoning.
 
   Release check: open a streaming page in a wrap, cover the window with another app
   for a minute, and confirm the reply is still arriving *and* still animating —

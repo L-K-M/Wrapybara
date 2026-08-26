@@ -118,13 +118,13 @@ enum SiteWebViewFactory {
     /// itself in the base system — for the same reason, that stale occlusion state
     /// makes pages misbehave.
     ///
-    /// What this deliberately does *not* cover: a *miniaturised* window, one hidden
-    /// with ⌘H, and a native tab sitting behind the selected one. All three make
-    /// `NSWindow.isVisible` false, which WebKit checks before it ever consults
-    /// occlusion, and no embedder switch reaches that check — so `SiteWindow`
-    /// answers it instead, reporting the window visible for as long as the app owns
-    /// it. Between the two, every state short of a closed window keeps its page in
-    /// the visible state.
+    /// What this does *not* cover on its own: a window hidden with ⌘H, and a
+    /// native tab sitting behind the selected one. Both make `NSWindow.isVisible`
+    /// false, which WebKit checks before it ever consults occlusion, and no
+    /// embedder switch reaches that check — so `SiteWindow` answers it instead,
+    /// reporting the window visible for as long as the app owns it. A miniaturised
+    /// window needs neither: it stays ordered in (`isVisible` still yes) and only
+    /// its occlusion state goes dark — this switch is what keeps its page up.
     static let windowOcclusionDetectionKey = "windowOcclusionDetectionEnabled"
 
     /// Keeps a covered window's page in the visible state.
