@@ -358,10 +358,13 @@ Not one feature — the absence of twenty small failures.
   affected. Repeat miniaturised and with two tabs, leaving the page in the
   background tab for a few minutes: the reply must keep arriving in both, not catch
   up on restore. Also leave it hidden 5+ minutes with the display asleep and confirm
-  a timer-driven page still advances on wake. The unit tests pin the keys, not WebKit's behaviour or App
-  Nap. A key retired upstream only shows up on the macOS that retired it, so run the
-  suite on the oldest supported macOS and a current beta before a release — and run
-  the check with a site users actually wrap, not only a timer-driven test page.
+  a timer-driven page still advances on wake. Then exercise the AppKit side of the
+  override: ⌘` window cycling, the Window menu, and VoiceOver must all stay sane
+  while the app is ⌘H-hidden and while a tab sits in the background. The unit tests
+  pin the keys, not WebKit's behaviour or App Nap. A key retired upstream only shows
+  up on the macOS that retired it, so run the suite on the oldest supported macOS and
+  a current beta before a release — and run the check with a site users actually wrap,
+  not only a timer-driven test page.
 
 ---
 

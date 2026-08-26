@@ -56,10 +56,9 @@ final class SiteWindowTests: XCTestCase {
         let window = makeSiteWindow()
         XCTAssertTrue(window.isVisible)
 
-        // What closing looks like from the window's side: the will-close
-        // notification. Posted directly so the test pins SiteWindow's own contract
-        // without dragging half of AppKit's close machinery into it.
-        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+        // The real close path, not a simulated notification: the honest answer has
+        // to be in place before any observer of the close can look.
+        window.close()
         XCTAssertFalse(window.isVisible)
     }
 
@@ -75,7 +74,7 @@ final class SiteWindowTests: XCTestCase {
         let window = try XCTUnwrap(controller.window as? SiteWindow)
         XCTAssertTrue(window.isVisible)
 
-        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+        window.close()
         XCTAssertFalse(window.isVisible)
     }
 }

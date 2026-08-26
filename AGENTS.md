@@ -174,7 +174,7 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   double-click there must follow the system title-bar setting, and no document
   proxy icon may appear next to the title; editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
-version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
+  version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
   *and animating* while another app's window covers it, that keeps updating while
   miniaturised and while parked on a background tab, and that catches up without
   a reload after a display sleeps and wakes; a failed navigation with an

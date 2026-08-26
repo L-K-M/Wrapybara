@@ -30,23 +30,18 @@ final class SiteWindow: NSWindow {
 
     override var isVisible: Bool { keepsPageLive ? true : super.isVisible }
 
-    override init(contentRect: NSRect, styleMask styleMask: NSWindow.StyleMask,
-                  backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
-        super.init(contentRect: contentRect, styleMask: styleMask,
-                   backing: backingStoreType, defer: flag)
-        // Object-scoped, so only this window's close clears the flag. Observers
-        // pairing a target with macOS 10.11+ need no explicit deregistration.
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(stopKeepingPageLive),
-            name: Self.willCloseNotification, object: self)
+    /// Flips *before* `super.close()` posts `willCloseNotification`: observers of
+    /// that notification run in unspecified order, and AppKit's own bookkeeping may
+    /// consult visibility ahead of anything this window could react with. The
+    /// honest answer has to be in place when the close becomes observable, not only
+    /// in reaction to it.
+    override func close() {
+        keepsPageLive = false
+        super.close()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("SiteWindow is created in code, not from a nib")
-    }
-
-    @objc private func stopKeepingPageLive() {
-        keepsPageLive = false
     }
 }
