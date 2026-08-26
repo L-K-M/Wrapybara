@@ -96,8 +96,9 @@ struct BehaviorEditorView: View {
 
             Section("Developer") {
                 Toggle("Allow the Web Inspector", isOn: binding(\.isWebInspectorEnabled))
-                Text("Adds Inspect Element to the page's context menu. Takes effect the next "
-                     + "time the app launches.")
+                Text("Adds Inspect Element to the page's context menu and Show Web Inspector "
+                     + "(⌥⌘I) to the app's View menu. A running app picks this up without "
+                     + "a rebuild.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

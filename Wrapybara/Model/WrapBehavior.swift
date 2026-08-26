@@ -116,7 +116,10 @@ struct WrapBehavior: Codable, Equatable {
 
     // MARK: Content
 
-    /// Enables the Develop menu and the Web Inspector for this app's web views.
+    /// Allows the Web Inspector for this app's pages: Inspect Element in the
+    /// page's context menu, Show Web Inspector (⌥⌘I) in its View menu, and remote
+    /// attach from Safari's Develop menu. Off by default — a shipped site app has
+    /// no business exposing its page's guts.
     var isWebInspectorEnabled: Bool
 
     init(chrome: Chrome = .toolbar,

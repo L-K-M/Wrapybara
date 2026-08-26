@@ -338,6 +338,13 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
+    /// ⌥⌘I: raise the Web Inspector over this window's page, or lower it when it
+    /// is already showing. The menu item validates the wrap's permission before
+    /// this can fire — see `validateMenuItem`.
+    @objc func showWebInspector(_ sender: Any?) {
+        SiteWebViewFactory.toggleInspector(of: webController.webView)
+    }
+
     // MARK: Toolbar
 
     private enum ToolbarItem {
@@ -465,6 +472,11 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
             return findBar.isVisible || findBar.canRepeatFind
         case #selector(sharePage(_:)), #selector(copyPageAddress(_:)), #selector(printPage(_:)):
             return webController.webView.url != nil
+        case #selector(showWebInspector(_:)):
+            // The live behavior, not the launch-time copy: a permission granted
+            // in Wrapybara mid-run arms the item on the next menu open.
+            return webController.wrap.behavior.isWebInspectorEnabled
+                && SiteWebViewFactory.canToggleInspector(of: webController.webView)
         default:
             return true
         }
