@@ -16,8 +16,13 @@ import XCTest
 final class SiteWindowTests: XCTestCase {
 
     private func makeSiteWindow() -> SiteWindow {
-        SiteWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
-                   styleMask: [.titled], backing: .buffered, defer: false)
+        let window = SiteWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                                styleMask: [.titled], backing: .buffered, defer: false)
+        // As production builds them (`SiteWindowController.makeWindow`). With the
+        // default `true`, `-close()` releases the window mid-test and everything
+        // read afterwards answers from freed memory.
+        window.isReleasedWhenClosed = false
+        return window
     }
 
     /// The honest-fixture half: a plain NSWindow that was never ordered in reports
