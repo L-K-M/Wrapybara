@@ -223,10 +223,25 @@ enum SiteWebViewFactory {
     /// which is what makes the toggle follow edits from Wrapybara without a
     /// rebuild or relaunch.
     static func setInspectionAllowed(_ allowed: Bool, on webView: WKWebView) {
-        webView.configuration.preferences.developerExtrasEnabled = allowed
+        setDeveloperExtras(allowed, on: webView.configuration.preferences)
         if #available(macOS 13.3, *) {
             webView.isInspectable = allowed
         }
+    }
+
+    /// The `WKPreferences` key behind the context menu's Inspect Element.
+    ///
+    /// A macOS-only WebKit preference with no Swift surface in current SDKs —
+    /// reachable only through KVC, so it rides the same probe-before-write
+    /// contract as the throttling keys above.
+    static let developerExtrasPreferenceKey = "developerExtrasEnabled"
+
+    private static func setDeveloperExtras(_ allowed: Bool, on preferences: WKPreferences) {
+        guard respondsToSetter(for: developerExtrasPreferenceKey, on: preferences) else {
+            logger.warning("WebKit no longer knows \(developerExtrasPreferenceKey, privacy: .public); Inspect Element will not appear in context menus")
+            return
+        }
+        preferences.setValue(allowed, forKey: developerExtrasPreferenceKey)
     }
 
     /// Whether raising the inspector can possibly work here.

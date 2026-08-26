@@ -80,14 +80,29 @@ final class SiteWebViewFactoryTests: XCTestCase {
 
     // MARK: Web Inspector
 
+    /// Reads the context-menu half of the inspector permission back off `webView`.
+    /// Same order as `assertThrottlingDisabled`: probe before reading, because
+    /// `value(forKey:)` on a retired key raises uncatchably — and halt rather than
+    /// record, because `XCTFail` alone would let the read through.
+    private func assertDeveloperExtras(_ expected: Bool, on webView: WKWebView,
+                                       _ message: String) {
+        let key = SiteWebViewFactory.developerExtrasPreferenceKey
+        let preferences = webView.configuration.preferences
+        guard SiteWebViewFactory.respondsToSetter(for: key, on: preferences) else {
+            XCTFail("\(key) is no longer a known WKPreferences key")
+            return
+        }
+        XCTAssertEqual(preferences.value(forKey: key) as? Bool, expected, message)
+    }
+
     /// Inspection is opt-in per wrap, and "off" has to mean both switches off:
     /// the preference that adds Inspect Element to the context menu, and the
     /// flag that lets Safari's Develop menu attach. Either left on exposes a
     /// page nobody asked to expose.
     func testMakeWebViewLeavesEveryInspectionSwitchOffByDefault() {
         let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
-        XCTAssertFalse(webView.configuration.preferences.developerExtrasEnabled,
-                       "Inspect Element must not appear unless the wrap allows it")
+        assertDeveloperExtras(false, on: webView,
+                              "Inspect Element must not appear unless the wrap allows it")
         if #available(macOS 13.3, *) {
             XCTAssertFalse(webView.isInspectable,
                            "Safari must not list the app in its Develop menu unless the wrap allows it")
@@ -102,8 +117,8 @@ final class SiteWebViewFactoryTests: XCTestCase {
         var wrap = fixtureWrap()
         wrap.behavior.isWebInspectorEnabled = true
         let webView = SiteWebViewFactory.makeWebView(for: wrap, messageHandler: StubHandler())
-        XCTAssertTrue(webView.configuration.preferences.developerExtrasEnabled,
-                      "Inspect Element belongs in the context menu when the wrap allows it")
+        assertDeveloperExtras(true, on: webView,
+                              "Inspect Element belongs in the context menu when the wrap allows it")
         if #available(macOS 13.3, *) {
             XCTAssertTrue(webView.isInspectable,
                           "Safari must be able to attach when the wrap allows it")
