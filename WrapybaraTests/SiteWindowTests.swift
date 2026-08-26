@@ -108,7 +108,6 @@ final class SiteWindowTests: XCTestCase {
         XCTAssertTrue(selected.isVisible)
         XCTAssertTrue(background.isVisible)
     }
-}
 
     func testUnshownSiteWindowReportsVisible() {
         XCTAssertTrue(makeSiteWindow().isVisible)
