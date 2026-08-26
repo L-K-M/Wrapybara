@@ -64,8 +64,11 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
         if wrap.behavior.chrome.hasTransparentTitleBar { style.insert(.fullSizeContentView) }
 
-        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
-                              styleMask: style, backing: .buffered, defer: false)
+        // SiteWindow, not NSWindow: a miniaturised window, ⌘H, and a background
+        // native tab all read as invisible to WebKit, which hides the page. See
+        // `SiteWindow`.
+        let window = SiteWindow(contentRect: NSRect(origin: .zero, size: size),
+                                styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)
         window.titlebarAppearsTransparent = wrap.behavior.chrome.hasTransparentTitleBar
         window.isReleasedWhenClosed = false
