@@ -223,6 +223,9 @@ enum SiteWebViewFactory {
     /// which is what makes the toggle follow edits from Wrapybara without a
     /// rebuild or relaunch.
     static func setInspectionAllowed(_ allowed: Bool, on webView: WKWebView) {
+        // A revocation takes down an inspector already up: WebKit closes only the
+        // remote attach on its own, the local window would stay open.
+        if !allowed { hideInspectorIfVisible(of: webView) }
         setDeveloperExtras(allowed, on: webView.configuration.preferences)
         if #available(macOS 13.3, *) {
             webView.isInspectable = allowed
@@ -250,8 +253,7 @@ enum SiteWebViewFactory {
     /// `_inspector` greys the entry out instead of offering a button that does
     /// nothing.
     static func canToggleInspector(of webView: WKWebView) -> Bool {
-        guard webView.responds(to: NSSelectorFromString(inspectorHandleKey)) else { return false }
-        return webView.value(forKey: inspectorHandleKey) != nil
+        inspectorObject(of: webView) != nil
     }
 
     /// Raises the inspector — or lowers it when already showing, the way Safari's
@@ -259,26 +261,39 @@ enum SiteWebViewFactory {
     /// rather than beep at machinery that isn't there.
     @discardableResult
     static func toggleInspector(of webView: WKWebView) -> Bool {
-        guard webView.responds(to: NSSelectorFromString(inspectorHandleKey)) else {
+        guard let inspector = inspectorObject(of: webView) else {
             logger.warning("WebKit no longer knows \(inspectorHandleKey, privacy: .public); the inspector cannot be raised from the menu bar")
             return false
         }
-        guard let inspector = webView.value(forKey: inspectorHandleKey) as? NSObject else {
-            return false
-        }
 
-        let isVisible = inspector.responds(to: NSSelectorFromString(inspectorVisibilityKey))
-            && ((inspector.value(forKey: inspectorVisibilityKey) as? Bool) ?? false)
-        let selector: Selector
-        if isVisible {
-            guard inspector.responds(to: hideInspectorSelector) else { return false }
-            selector = hideInspectorSelector
-        } else {
-            selector = inspector.responds(to: showInspectorSelector)
-                ? showInspectorSelector : connectInspectorSelector
-            guard inspector.responds(to: selector) else { return false }
-        }
+        let selector = isInspectorVisible(inspector)
+            ? hideInspectorSelector
+            : (inspector.responds(to: showInspectorSelector)
+               ? showInspectorSelector : connectInspectorSelector)
+        guard inspector.responds(to: selector) else { return false }
         inspector.perform(selector)
         return true
+    }
+
+    /// Hides the inspector when it is up. Probed end to end, so a WebKit missing
+    /// any piece of the handle makes revocation's tidy-up a quiet no-op.
+    private static func hideInspectorIfVisible(of webView: WKWebView) {
+        guard let inspector = inspectorObject(of: webView),
+              isInspectorVisible(inspector),
+              inspector.responds(to: hideInspectorSelector) else { return }
+        inspector.perform(hideInspectorSelector)
+    }
+
+    /// Reads `_inspector`. Probed first because KVC on a key WebKit no longer
+    /// knows raises an uncatchable exception — the same contract as the setter
+    /// probes above.
+    private static func inspectorObject(of webView: WKWebView) -> NSObject? {
+        guard webView.responds(to: NSSelectorFromString(inspectorHandleKey)) else { return nil }
+        return webView.value(forKey: inspectorHandleKey) as? NSObject
+    }
+
+    private static func isInspectorVisible(_ inspector: NSObject) -> Bool {
+        inspector.responds(to: NSSelectorFromString(inspectorVisibilityKey))
+            && ((inspector.value(forKey: inspectorVisibilityKey) as? Bool) ?? false)
     }
 }

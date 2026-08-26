@@ -124,4 +124,27 @@ final class SiteWebViewFactoryTests: XCTestCase {
                           "Safari must be able to attach when the wrap allows it")
         }
     }
+
+    /// The permission must follow an edit made while the site app runs: the
+    /// controller applies changes with `setInspectionAllowed` on the web view
+    /// already on screen, so the flip has to reach both switches there too.
+    func testSetInspectionAllowedFlipsBothSwitchesOnAnExistingWebView() {
+        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
+
+        SiteWebViewFactory.setInspectionAllowed(true, on: webView)
+        assertDeveloperExtras(true, on: webView,
+                              "a live permission edit must arm Inspect Element without a rebuild")
+        if #available(macOS 13.3, *) {
+            XCTAssertTrue(webView.isInspectable,
+                          "a live permission edit must let Safari attach without a rebuild")
+        }
+
+        SiteWebViewFactory.setInspectionAllowed(false, on: webView)
+        assertDeveloperExtras(false, on: webView,
+                              "revoking the permission must remove Inspect Element again")
+        if #available(macOS 13.3, *) {
+            XCTAssertFalse(webView.isInspectable,
+                           "revoking the permission must detach Safari again")
+        }
+    }
 }
