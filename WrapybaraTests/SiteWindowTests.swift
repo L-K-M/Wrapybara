@@ -25,6 +25,13 @@ final class SiteWindowTests: XCTestCase {
         return window
     }
 
+    private func makePlainWindow() -> NSWindow {
+        let plain = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                             styleMask: [.titled], backing: .buffered, defer: false)
+        plain.isReleasedWhenClosed = false
+        return plain
+    }
+
     /// The honest-fixture half: a plain NSWindow that was never ordered in reports
     /// invisible — which is exactly the answer that makes WebKit hide a wrapped
     /// page. If a future macOS ever reports true here, the premise of
@@ -44,8 +51,8 @@ final class SiteWindowTests: XCTestCase {
         let plain = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
                              styleMask: [.titled, .miniaturizable], backing: .buffered,
                              defer: false)
-        plain.orderFrontRegardless()
         plain.isReleasedWhenClosed = false
+        plain.orderFrontRegardless()
         defer { plain.close() }
         plain.miniaturize(nil)
         // Headless test environments may not have a WindowServer to talk to; the
@@ -73,6 +80,7 @@ final class SiteWindowTests: XCTestCase {
     /// answer visible — that is the whole point of `SiteWindow`.
     func testOrderedOutSiteWindowStillReportsVisible() {
         let window = makeSiteWindow()
+        window.orderFrontRegardless()
         window.orderOut(nil)
         XCTAssertTrue(window.isVisible)
 
@@ -87,8 +95,8 @@ final class SiteWindowTests: XCTestCase {
 
     /// The second headline state: a native tab parked behind the selected one.
     /// Whichever tab ends up in the background must still answer visible. Skipped
-    /// where no tab group forms — but where it does, the assertion holds by
-    /// construction, because the override answers for managed windows.
+    /// where no tab group forms, and a plain-window control pair pins the
+    /// premise that a background tab reads invisible without the override.
     func testTabGroupSiteWindowsStillReportVisible() throws {
         let previousTabbing = NSWindow.allowsAutomaticWindowTabbing
         NSWindow.allowsAutomaticWindowTabbing = true
@@ -106,6 +114,24 @@ final class SiteWindowTests: XCTestCase {
 
         try XCTSkipUnless(selected.tabbedWindows?.contains(background) == true,
                           "no tab group formed here; premise unpinned")
+
+        // Control pair: a *plain* window parked behind the selected tab must read
+        // invisible, or this test can't tell the override working from the
+        // premise having moved out from under it.
+        let plainSelected = makePlainWindow()
+        let plainBackground = makePlainWindow()
+        plainBackground.tabbingIdentifier = plainSelected.tabbingIdentifier
+        plainSelected.orderFrontRegardless()
+        plainSelected.addTabbedWindow(plainBackground, ordered: .below)
+        defer {
+            plainBackground.close()
+            plainSelected.close()
+        }
+        try XCTSkipUnless(
+            plainSelected.tabbedWindows?.contains(plainBackground) == true,
+            "control tab group did not form; premise unpinned")
+        XCTAssertFalse(plainBackground.isVisible)
+
         XCTAssertTrue(selected.isVisible)
         XCTAssertTrue(background.isVisible)
     }
