@@ -15,17 +15,18 @@ enum SiteWebViewFactory {
     /// filtered in Console no matter which app the binary was copied into.
     private static let logger = Logger(subsystem: "Wrapybara", category: "SiteWebViewFactory")
 
-    /// The `WKPreferences` keys that make a hidden page stop throttling.
+    /// The `WKPreferences` keys that keep a hidden page *running*.
     ///
     /// macOS treats a wrap whose window is covered, miniaturised, on another
     /// Space, or behind a sleeping display as "hidden", and WebKit then throttles
-    /// the page's DOM timers to about once a second — and after a delay suspends
-    /// the WebContent process entirely. A streaming chat is driven by timers, so
-    /// the moment its window is covered it stops updating even though the server
-    /// is still sending; and once the process is suspended the stream dies with
-    /// no recovery short of a reload. Safari can afford that for a background
-    /// tab; a wrap is the whole app, so it should keep running the way a native
-    /// app does.
+    /// the page's DOM timers to about once a second (growing over time) and lets
+    /// the WebContent process be suppressed the way App Nap suppresses an idle
+    /// app. Safari can afford that for a background tab; a wrap is the whole app,
+    /// so its page keeps full-speed timers and an unsuppressed process even while
+    /// hidden — network delivery was never the issue (WebKit doesn't gate it on
+    /// visibility; `Page::setIsVisibleInternal` touches only rendering and
+    /// timers), so with these set, a site that keeps streaming while hidden
+    /// keeps up in real time.
     ///
     /// These are the undocumented preferences Playwright, Bun and MacPin set for
     /// exactly this reason (they're the WebKit-internal controls for hidden-page
@@ -35,6 +36,23 @@ enum SiteWebViewFactory {
     /// mac/AppDelegate.m`, Bun the process-suppression key in `src/runtime/
     /// webview/ObjCRuntime.cpp`, and MacPin — a similar site-wrapper — declares
     /// them in `modules/WebKitPrivates/WKPreferencesPrivate.h`.
+    ///
+    /// What these keys deliberately do **not** do is hide the truth: a hidden
+    /// page still *knows* it is hidden. `document.hidden` flips, `visibilitychange`
+    /// fires, and `requestAnimationFrame` pauses until the page is visible again —
+    /// exactly as in Safari. That truth is load-bearing. A streaming site's
+    /// connection can die silently at any moment (system sleep, a NAT or proxy
+    /// idle timeout, a network change), and the web platform tells the page
+    /// nothing — a half-open stream raises no error, and neither `EventSource`
+    /// nor a fetch stream reconnects on silence. What every streaming site does
+    /// instead is resynchronize on the hidden→visible `visibilitychange` (it is
+    /// the one event the standard refetch layers listen for). This project once
+    /// pinned pages "visible" forever — an occlusion-detection opt-out on the web
+    /// view plus a window subclass lying in `isVisible` — and the pages inside
+    /// never saw a single `visibilitychange`, so the first silently-dead
+    /// connection left the wrap stale until a manual reload: the "app stopped
+    /// updating but the server kept running" bug. Keep the page running; never
+    /// tell it it's visible when it isn't.
     static let hiddenPageThrottlingPreferenceKeys = [
         "hiddenPageDOMTimerThrottlingEnabled",
         "hiddenPageDOMTimerThrottlingAutoIncreases",
@@ -59,7 +77,8 @@ enum SiteWebViewFactory {
     /// from `setValue`, so probe before calling it — probe true guarantees the
     /// write won't throw, probe false means skip. Shared with the tests so
     /// production and CI can't drift. Takes an `NSObject` rather than a
-    /// `WKPreferences` because the same probe guards the `WKWebView` key below.
+    /// `WKPreferences` because the tests also probe a `WKWebView` key with it
+    /// (the occlusion-detection regression pin).
     static func respondsToSetter(for key: String, on object: NSObject) -> Bool {
         object.responds(to: setterSelector(for: key, underscored: false))
             || object.responds(to: setterSelector(for: key, underscored: true))
@@ -88,66 +107,6 @@ enum SiteWebViewFactory {
         }
     }
 
-    /// The `WKWebView` key that stops a *covered* window from marking its page hidden.
-    ///
-    /// The preferences above lift timer throttling and WebKit's own process
-    /// suppression, but neither touches the thing that actually stalls a streaming
-    /// page: whether WebKit considers the page *visible*. On macOS that is decided
-    /// by `PageClientImpl::isViewVisible`, which is false when the view has no
-    /// window, when the view is hidden, when `NSWindow.isVisible` is false, **or**
-    /// when the window's occlusion state has lost `NSWindowOcclusionStateVisible` —
-    /// which is what happens the moment another app's window covers the wrap, the
-    /// user switches Space, or the display sleeps.
-    ///
-    /// Losing visibility runs `Page::setIsVisibleInternal(false)` in the web content
-    /// process, and that does three things a chat page cannot survive:
-    /// `suspendScriptedAnimations()` stops `requestAnimationFrame`, the document
-    /// timelines suspend CSS and SVG animation (so a "working on it" spinner stops
-    /// mid-throb), and `visibilityStateChanged()` fires `visibilitychange` with
-    /// `document.hidden` true — at which point the site's own code is entitled to
-    /// tear its stream down, and typically does. The page is then stuck until it is
-    /// reloaded: the reply the server finished writing never arrives, and only a
-    /// reload fetches it. That is the "the app stopped updating" report, and the
-    /// throttling keys alone never addressed it.
-    ///
-    /// `_windowOcclusionDetectionEnabled` is WebKit's own opt-out. False drops the
-    /// occlusion term from that test, so a wrap whose window is merely covered keeps
-    /// a visible page: animations keep running, `visibilitychange` never fires, and
-    /// the stream stays up. It carries no availability annotation in
-    /// `WKWebViewPrivate.h` (it has been there since 2015), and WebKit sets it false
-    /// itself in the base system — for the same reason, that stale occlusion state
-    /// makes pages misbehave.
-    ///
-    /// What this does *not* cover on its own: a window hidden with ⌘H, and a
-    /// native tab sitting behind the selected one. Both make `NSWindow.isVisible`
-    /// false, which WebKit checks before it ever consults occlusion, and no
-    /// embedder switch reaches that check — so `SiteWindow` answers it instead,
-    /// reporting the window visible for as long as the app owns it. A miniaturised
-    /// window needs neither: it stays ordered in (`isVisible` still yes) and only
-    /// its occlusion state goes dark — this switch is what keeps its page up.
-    static let windowOcclusionDetectionKey = "windowOcclusionDetectionEnabled"
-
-    /// Keeps a covered window's page in the visible state.
-    ///
-    /// See `windowOcclusionDetectionKey` for the mechanism and for the two cases it
-    /// doesn't reach. The trade-off is the one `preventHiddenPageThrottling` already
-    /// makes, answered the same way: a covered wrap keeps animating and keeps costing
-    /// battery, because a wrap is the whole app rather than a background tab.
-    ///
-    /// Probed rather than set blind, for the reason the preference keys are: a key
-    /// WebKit has retired raises an uncatchable `NSUndefinedKeyException`, and a wrap
-    /// that freezes when covered is much better than one that crashes at launch.
-    static func keepPageVisibleWhileWindowIsCovered(_ webView: WKWebView) {
-        let key = windowOcclusionDetectionKey
-        guard respondsToSetter(for: key, on: webView) else {
-            // Same diagnostic contract as the throttling keys: a user whose macOS
-            // retired this would otherwise just see the freeze come back.
-            logger.warning("WebKit no longer knows \(key, privacy: .public); a covered window will hide its page")
-            return
-        }
-        webView.setValue(false, forKey: key)
-    }
-
     /// - Parameter handler: receives the page's messages — the picker's selection, the
     ///   notification shim's payloads, soft navigations.
     static func makeWebView(for wrap: Wrap,
@@ -162,6 +121,10 @@ enum SiteWebViewFactory {
         configuration.websiteDataStore = .default()
 
         preventHiddenPageThrottling(configuration)
+        // Deliberately nothing about *visibility* here (no occlusion-detection
+        // opt-out, no `isVisible` games): the page must see honest
+        // `visibilitychange` transitions, or it can never notice a silently dead
+        // stream and resynchronize — see `hiddenPageThrottlingPreferenceKeys`.
 
         configuration.suppressesIncrementalRendering = false
         configuration.mediaTypesRequiringUserActionForPlayback = .audio
@@ -177,9 +140,6 @@ enum SiteWebViewFactory {
         }
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-        // Before the view is ever put in a window, so the first activity state WebKit
-        // computes for it already has occlusion out of the picture.
-        keepPageVisibleWhileWindowIsCovered(webView)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
         webView.allowsLinkPreview = true

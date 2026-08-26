@@ -40,12 +40,14 @@ that site — and behaves like something a person wrote on purpose.
   provider doesn't dump you into Safari halfway.
 - **Its own login.** Each app gets its own bundle identifier and its own WebKit
   session, so two wraps of the same site can be two different accounts.
-- **Stays live in the background.** A page the server drives — an agent writing a
-  reply, a chat stream, a build log — keeps updating while you work in another app,
-  even once its window is completely covered. The app holds macOS's "user-initiated
-  work" assertion instead of letting App Nap freeze its web content, and a covered
-  window still counts as a page you're looking at, so the site never gets told to
-  pause itself.
+- **Stays live in the background — and catches up when you return.** A page the
+  server drives — an agent writing a reply, a chat stream, a build log — keeps its
+  timers and its web content running at full speed while you work in another app:
+  the app holds macOS's "user-initiated work" assertion instead of letting App Nap
+  freeze it, and WebKit's hidden-page throttling is switched off. The page still
+  learns honestly when it's hidden and visible again, the way it would in Safari —
+  that's what lets a site notice a connection that died while you were away and
+  resync itself the moment you come back, instead of sitting stale until you reload.
 - **Dock badge** read out of the page title, the way a browser tab does it.
 - **Handoff** — pick the page up on your iPhone.
 - **A few megabytes**, because WebKit is already on your Mac. Not a few hundred.
