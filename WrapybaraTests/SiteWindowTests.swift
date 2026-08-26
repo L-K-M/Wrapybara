@@ -89,8 +89,15 @@ final class SiteWindowTests: XCTestCase {
         window.close()
         XCTAssertFalse(window.isVisible)
 
-        // The safety net: a closed window shown again is owned again.
+        // The safety net: a closed window shown again is owned again — via the
+        // key path and via bare ordering, which the class doc says
+        // `order(_:relativeTo:)` covers. Pin both re-show paths.
         window.makeKeyAndOrderFront(nil)
+        XCTAssertTrue(window.isVisible)
+
+        window.close()
+        XCTAssertFalse(window.isVisible)
+        window.orderFrontRegardless()
         XCTAssertTrue(window.isVisible)
     }
 
