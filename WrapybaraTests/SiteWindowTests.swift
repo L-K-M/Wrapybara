@@ -133,6 +133,10 @@ final class SiteWindowTests: XCTestCase {
         try XCTSkipUnless(
             plainSelected.tabbedWindows?.contains(plainBackground) == true,
             "control tab group did not form; premise unpinned")
+        // Without WindowServer cooperation nothing here is visible and the
+        // assertion below would hold vacuously.
+        try XCTSkipUnless(plainSelected.isVisible,
+                          "no WindowServer cooperation; premise unpinned here")
         XCTAssertFalse(plainBackground.isVisible)
 
         XCTAssertTrue(selected.isVisible)
