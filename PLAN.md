@@ -362,7 +362,8 @@ Not one feature — the absence of twenty small failures.
   even if the override had failed. Also leave it hidden 5+ minutes with the display
   asleep and confirm a timer-driven page still advances on wake. Then exercise the
   AppKit side of the
-  override: ⌘` window cycling, the Window menu, and VoiceOver must all stay sane
+  override: ⌘` window cycling, the Window menu, Mission Control and Space switching,
+  and VoiceOver must all stay sane
   while the app is ⌘H-hidden and while a tab sits in the background. The unit tests
   pin the keys, not WebKit's behaviour or App Nap. A key retired upstream only shows
   up on the macOS that retired it, so run the suite on the oldest supported macOS and
