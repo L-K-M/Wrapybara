@@ -45,12 +45,40 @@ final class SiteWindowTests: XCTestCase {
                              styleMask: [.titled, .miniaturizable], backing: .buffered,
                              defer: false)
         plain.orderFrontRegardless()
+        plain.isReleasedWhenClosed = false
+        defer { plain.close() }
         plain.miniaturize(nil)
         // Headless test environments may not have a WindowServer to talk to; the
         // premise is only pinned where miniaturising actually happened.
         try XCTSkipUnless(plain.isMiniaturized,
                           "no WindowServer cooperation; premise unpinned here")
         XCTAssertTrue(plain.isVisible)
+    }
+
+    /// The premise for the ⌘H case: ordering out is what hiding does to a window,
+    /// and an ordered-out window reads invisible to WebKit just like an unshown one.
+    func testOrderedOutPlainWindowIsNotVisible() throws {
+        let plain = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                             styleMask: [.titled], backing: .buffered, defer: false)
+        plain.isReleasedWhenClosed = false
+        plain.orderFrontRegardless()
+        defer { plain.close() }
+        try XCTSkipUnless(plain.isVisible,
+                          "no WindowServer cooperation; premise unpinned here")
+        plain.orderOut(nil)
+        XCTAssertFalse(plain.isVisible)
+    }
+
+    /// The ⌘H case itself: an owned window that has been ordered out must still
+    /// answer visible — that is the whole point of `SiteWindow`.
+    func testOrderedOutSiteWindowStillReportsVisible() {
+        let window = makeSiteWindow()
+        window.orderOut(nil)
+        XCTAssertTrue(window.isVisible)
+
+        // Closing is what hands honesty back, even from the ordered-out state.
+        window.close()
+        XCTAssertFalse(window.isVisible)
     }
 
     func testUnshownSiteWindowReportsVisible() {
