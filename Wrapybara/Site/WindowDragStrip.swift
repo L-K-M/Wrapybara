@@ -58,15 +58,21 @@ final class WindowDragStrip: NSView {
     /// The title starts clear of the traffic lights, read from the buttons
     /// themselves so a change in their metrics moves the title with them.
     private var titleLeadingX: CGFloat {
-        let zoomFrame = window?.frameOfStandardWindowButton(.zoomButton) ?? .zero
-        let buttonsEnd = convert(zoomFrame, from: nil).maxX
+        guard let zoom = window?.standardWindowButton(.zoomButton) else {
+            return Self.fallbackLeadingInset
+        }
+        let buttonsEnd = convert(zoom.frame, from: zoom.superview).maxX
         return buttonsEnd > 0 ? buttonsEnd + Self.gapAfterButtons
                               : Self.fallbackLeadingInset
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let title = window?.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !title.isEmpty else { return }
+        guard let window else { return }
+        // A tab group's tab bar owns this band while the window is merged into
+        // one; drawing under it would double up with the tab titles.
+        guard (window.tabbedWindows?.count ?? 1) <= 1 else { return }
+        let title = window.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
 
         // Truncates with an ellipsis rather than wrapping: the strip is one line
         // tall, and a page title is allowed to be longer than it.
@@ -83,12 +89,12 @@ final class WindowDragStrip: NSView {
         guard width > 0 else { return }
         let textSize = text.boundingRect(
             with: NSSize(width: width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin]).size
+            options: [.usesLineFragmentOrigin], context: nil).size
 
         text.draw(with: NSRect(x: leadingX,
                                y: (bounds.height - textSize.height) / 2,
                                width: width,
                                height: textSize.height),
-                  options: [.usesLineFragmentOrigin])
+                  options: [.usesLineFragmentOrigin], context: nil)
     }
 }
