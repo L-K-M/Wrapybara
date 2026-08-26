@@ -26,7 +26,10 @@ final class SiteWindowVisibilityTests: XCTestCase {
     /// A window nobody has shown yet reads invisible — the plain `NSWindow`
     /// answer, which is the one WebKit must keep hearing.
     func testControllerWindowAnswersVisibilityHonestlyBeforeShowing() throws {
-        let window = try XCTUnwrap(makeController().window)
+        // The controller stays alive for the read: the window being measured is
+        // the one production configures, not one orphaned by its owner's deinit.
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
         XCTAssertFalse(window.isVisible,
                        "an unshown site-app window must not claim to be visible")
     }
@@ -47,5 +50,11 @@ final class SiteWindowVisibilityTests: XCTestCase {
         window.orderOut(nil)
         XCTAssertFalse(window.isVisible,
                        "an ordered-out site-app window must not claim to be visible")
+        // The other half of the signal: coming back must read visible again —
+        // that transition is the one WebKit turns into the hidden→visible
+        // `visibilitychange` a dead stream resynchronizes on.
+        window.orderFrontRegardless()
+        XCTAssertTrue(window.isVisible,
+                      "a re-shown site-app window must report itself visible again")
     }
 }

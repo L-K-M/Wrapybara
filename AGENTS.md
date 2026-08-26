@@ -180,7 +180,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   window covered it, after sitting miniaturised or parked on a background tab,
   after the display sleeps and wakes, and after a real system sleep long enough
   to kill the connection (the acid test: `document.visibilityState` must read
-  `hidden` while covered and flip back, or the site's own resync never runs);
+  `hidden` while the window is *fully* covered — partial coverage still counts
+  as visible — and flip back, or the site's own resync never runs);
   a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost

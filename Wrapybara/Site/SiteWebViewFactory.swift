@@ -24,9 +24,9 @@ enum SiteWebViewFactory {
     /// app. Safari can afford that for a background tab; a wrap is the whole app,
     /// so its page keeps full-speed timers and an unsuppressed process even while
     /// hidden — network delivery was never the issue (WebKit doesn't gate it on
-    /// visibility; `Page::setIsVisibleInternal` touches only rendering and
-    /// timers), so with these set, a site that keeps streaming while hidden
-    /// keeps up in real time.
+    /// visibility; `Page::setIsVisibleInternal` touches only rendering,
+    /// animations, timers and the `visibilitychange` dispatch), so with these
+    /// set, a site that keeps streaming while hidden keeps up in real time.
     ///
     /// These are the undocumented preferences Playwright, Bun and MacPin set for
     /// exactly this reason (they're the WebKit-internal controls for hidden-page

@@ -353,9 +353,10 @@ Not one feature — the absence of twenty small failures.
   They ride undocumented WebKit keys set via KVC — fine under Developer ID
   distribution, but re-review before any Mac App Store submission.
 
-  Release check: open a streaming page in a wrap, cover the window with another
-  app while a reply is being written, then uncover it — the page must catch up
-  *without a reload*. Repeat miniaturised, with the page parked in a background
+  Release check: open a streaming page in a wrap, completely cover the window
+  with another app while a reply is being written (occlusion flips only on full
+  coverage — a partly visible window still counts as visible), then uncover it —
+  the page must catch up *without a reload*. Repeat miniaturised, with the page parked in a background
   tab, with the app ⌘H-hidden, after a display sleep, and after a real system
   sleep long enough to kill the connection. Assert
   `document.visibilityState === "hidden"` while covered and `"visible"` after the
