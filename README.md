@@ -44,10 +44,12 @@ that site — and behaves like something a person wrote on purpose.
   server drives — an agent writing a reply, a chat stream, a build log — keeps its
   timers and its web content running at full speed while you work in another app:
   the app holds macOS's "user-initiated work" assertion instead of letting App Nap
-  freeze it, and WebKit's hidden-page throttling is switched off. The page still
-  learns honestly when it's hidden and visible again, the way it would in Safari —
-  that's what lets a site notice a connection that died while you were away and
-  resync itself the moment you come back, instead of sitting stale until you reload.
+  freeze it, and WebKit's hidden-page throttling is switched off — so a site that
+  keeps streaming while hidden keeps up in real time. The page still learns
+  honestly when it's hidden and visible again, the way it would in Safari; a site
+  that chooses to pause itself while hidden resumes and resyncs the moment you
+  come back — as does one whose connection died while you were away — instead of
+  sitting stale until you reload.
 - **Dock badge** read out of the page title, the way a browser tab does it.
 - **Handoff** — pick the page up on your iPhone.
 - **A few megabytes**, because WebKit is already on your Mac. Not a few hundred.
