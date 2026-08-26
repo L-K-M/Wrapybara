@@ -40,6 +40,15 @@ final class SiteWindow: NSWindow {
         super.close()
     }
 
+    /// Re-declared rather than inherited: defining `init?(coder:)` below stops
+    /// Swift from passing `NSWindow`'s designated initializers down, and this is
+    /// the one every site-app window is built through.
+    override init(contentRect: NSRect, styleMask styleMask: NSWindow.StyleMask,
+                  backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: styleMask,
+                   backing: backingStoreType, defer: flag)
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("SiteWindow is created in code, not from a nib")
