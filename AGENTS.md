@@ -174,7 +174,9 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   an unfocused state),
   double-click there must follow the system title-bar setting, and no document
   proxy icon may appear next to the title; editing a boost while the built
-  app is running; the element picker on a single-page app; a wrap built by an older
+  app is running; the element picker on a single-page app; Show Web Inspector
+  (⌥⌘I) — it must open in its own window with nothing flickering, because an
+  *attached* inspector fights the container's Auto Layout; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
   *and animating* while another app's window covers it, that keeps updating while
   miniaturised and while parked on a background tab, and that catches up without

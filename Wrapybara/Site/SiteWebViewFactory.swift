@@ -210,6 +210,7 @@ enum SiteWebViewFactory {
     private static let inspectorVisibilityKey = "isVisible"
     private static let showInspectorSelector = NSSelectorFromString("show")
     private static let hideInspectorSelector = NSSelectorFromString("hide")
+    private static let detachInspectorSelector = NSSelectorFromString("detach")
 
     /// Writes the wrap's inspector permission onto a web view.
     ///
@@ -253,12 +254,27 @@ enum SiteWebViewFactory {
     static func canToggleInspector(of webView: WKWebView) -> Bool {
         guard let inspector = inspectorObject(of: webView) else { return false }
         return inspector.responds(to: showInspectorSelector)
-            || inspector.responds(to: hideInspectorSelector)
+            && inspector.responds(to: hideInspectorSelector)
     }
 
-    /// Raises the inspector — or lowers it when already showing, the way Safari's
-    /// ⌥⌘I behaves. Returns whether anything happened, so a caller can stay quiet
-    /// rather than beep at machinery that isn't there.
+    /// Raises the inspector in a window of its own — or closes it when showing,
+    /// the way Safari's ⌥⌘I behaves.
+    ///
+    /// Detached on purpose. WebKit's other presentation is a panel *attached*
+    /// inside the inspected view, and it is frame-managed: WebKit shrinks the web
+    /// view to carve the panel out and observes the frame to keep it that way.
+    /// This app's container pins the web view with Auto Layout, so every WebKit
+    /// correction is undone by the next layout pass and re-made by WebKit's
+    /// observer — the page and the panel flicker against each other forever.
+    /// A window of WebKit's own never enters that fight.
+    ///
+    /// `show` may open either presentation, so `detach` runs right behind it:
+    /// both calls share one run-loop turn, so an attached intermediate state is
+    /// never drawn and the frame observer never fires. A WebKit without `detach`
+    /// keeps whatever `show` opened.
+    ///
+    /// Returns whether anything happened, so a caller can stay quiet rather than
+    /// beep at machinery that isn't there.
     @discardableResult
     static func toggleInspector(of webView: WKWebView) -> Bool {
         guard let inspector = inspectorObject(of: webView) else {
@@ -273,6 +289,11 @@ enum SiteWebViewFactory {
             return false
         }
         inspector.perform(selector)
+
+        if selector == showInspectorSelector,
+           inspector.responds(to: detachInspectorSelector) {
+            inspector.perform(detachInspectorSelector)
+        }
         return true
     }
 
