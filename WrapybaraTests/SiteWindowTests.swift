@@ -79,7 +79,36 @@ final class SiteWindowTests: XCTestCase {
         // Closing is what hands honesty back, even from the ordered-out state.
         window.close()
         XCTAssertFalse(window.isVisible)
+
+        // The safety net: a closed window shown again is owned again.
+        window.makeKeyAndOrderFront(nil)
+        XCTAssertTrue(window.isVisible)
     }
+
+    /// The second headline state: a native tab parked behind the selected one.
+    /// Whichever tab ends up in the background must still answer visible. Skipped
+    /// where no tab group forms — but where it does, the assertion holds by
+    /// construction, because the override answers for managed windows.
+    func testTabGroupSiteWindowsStillReportVisible() throws {
+        NSWindow.allowsAutomaticWindowTabbing = true
+        defer { NSWindow.allowsAutomaticWindowTabbing = false }
+
+        let selected = makeSiteWindow()
+        let background = makeSiteWindow()
+        background.tabbingIdentifier = selected.tabbingIdentifier
+        selected.orderFrontRegardless()
+        selected.addTabbedWindow(background, ordered: .below)
+        defer {
+            background.close()
+            selected.close()
+        }
+
+        try XCTSkipUnless(selected.tabbedWindows?.contains(background) == true,
+                          "no tab group formed here; premise unpinned")
+        XCTAssertTrue(selected.isVisible)
+        XCTAssertTrue(background.isVisible)
+    }
+}
 
     func testUnshownSiteWindowReportsVisible() {
         XCTAssertTrue(makeSiteWindow().isVisible)

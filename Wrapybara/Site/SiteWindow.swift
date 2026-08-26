@@ -20,8 +20,9 @@ import AppKit
 /// already makes, answered the same way: a wrap is the whole app, not a background
 /// tab. Closed windows go back to answering honestly, because AppKit's
 /// quit-on-last-close and click-the-Dock-icon-to-reopen logic consult visibility
-/// too, and those must keep seeing the truth. There is deliberately no re-arm: the
-/// reopen path never re-shows a closed window, it builds a fresh `SiteWindow`.
+/// too, and those must keep seeing the truth. Re-shown windows re-arm: today's
+/// reopen path always builds a fresh `SiteWindow`, but if a future path ever
+/// orders a closed one back in, honesty must not outlive it.
 final class SiteWindow: NSWindow {
 
     /// False from the moment the window's close begins; flips `isVisible` back to
@@ -38,6 +39,15 @@ final class SiteWindow: NSWindow {
     override func close() {
         keepsPageLive = false
         super.close()
+    }
+
+    /// Safety net for a path today's app never takes: a closed window ordered in
+    /// again must re-arm, or its page reads hidden to WebKit forever — the very
+    /// bug this class exists to fix. For a live window this is a no-op (already
+    /// true).
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        keepsPageLive = true
+        super.makeKeyAndOrderFront(sender)
     }
 
     /// Re-declared rather than inherited: defining `init?(coder:)` below stops
