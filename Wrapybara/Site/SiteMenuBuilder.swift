@@ -155,17 +155,23 @@ enum SiteMenuBuilder {
         add(menu, "Boosts on This Page…", #selector(SiteWindowController.toggleBoostsInfo(_:)))
         menu.addItem(.separator())
 
+        // Show Web Inspector, at Safari's shortcut. Targetless so it's the front
+        // window's page that gets inspected; validated against the wrap's
+        // permission and the plumbing actually present, because WebKit offers no
+        // public way to raise its inspector (see `SiteWebViewFactory.toggleInspector`).
+        // Always built rather than omitted for wraps without the permission: a
+        // live edit in Wrapybara then arms the item with no relaunch.
+        let inspector = add(menu, "Show Web Inspector",
+                            #selector(SiteWindowController.showWebInspector(_:)), "i")
+        inspector.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(.separator())
+
         let toggleToolbar = add(menu, "Hide Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "t")
         toggleToolbar.keyEquivalentModifierMask = [.command, .option]
         add(menu, "Customize Toolbar…", #selector(NSWindow.runToolbarCustomizationPalette(_:)))
         menu.addItem(.separator())
         let fullScreen = add(menu, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f")
         fullScreen.keyEquivalentModifierMask = [.command, .control]
-
-        // No "Show Web Inspector" item: WebKit exposes no public API to open the
-        // inspector, only `WKWebView.isInspectable` to allow it. With that on (a
-        // per-wrap setting), the inspector is reached the documented way — right-click
-        // → Inspect Element. A menu item here would have nothing to call.
 
         item.submenu = menu
         return item

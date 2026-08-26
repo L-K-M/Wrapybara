@@ -367,9 +367,9 @@ indicator honest rather than noisy. (k3 K29.)
 
 ### P2 — no "takes effect on next page load" hint for UA/zoom changes
 (#18 now *reloads* on a live UA change, so the UA half is resolved; zoom-from-the-
-editor propagates live by design.) Remaining: the inspector toggle's "next launch"
-caption is the pattern — audit the Behaviour tab for anything else that needs one and
-say it next to the control.
+editor propagates live by design; the inspector toggle now applies live too and
+its caption says so.) Remaining: audit the Behaviour tab for anything else that
+needs a hint and say it next to the control.
 
 ### P2 — `CodeEditor.disableSmartSubstitutions` writes process-wide UserDefaults
 It permanently writes four defaults keys into Wrapybara's domain (they persist across

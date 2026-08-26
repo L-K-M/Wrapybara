@@ -131,6 +131,7 @@ final class SiteWebController: NSObject {
         // types — and because two stored values are what's actually being compared.
         let oldPageZoom = configuration.wrap.behavior.pageZoom
         let oldUserAgent = configuration.wrap.behavior.resolvedUserAgent
+        let oldAllowsInspection = configuration.wrap.behavior.isWebInspectorEnabled
         let newBehavior = newConfiguration.wrap.behavior
         let newUserAgent = newBehavior.resolvedUserAgent
 
@@ -163,6 +164,14 @@ final class SiteWebController: NSObject {
         // user's ⌘+ zoom back to the default on every keystroke there.
         if newBehavior.pageZoom != oldPageZoom {
             webView.pageZoom = newBehavior.pageZoom
+        }
+
+        // The inspector permission follows live edits: both switches take effect
+        // on the page already on screen, so Inspect Element and the View menu's
+        // Show Web Inspector arm without a reload or relaunch.
+        if newBehavior.isWebInspectorEnabled != oldAllowsInspection {
+            SiteWebViewFactory.setInspectionAllowed(newBehavior.isWebInspectorEnabled,
+                                                    on: webView)
         }
         delegate?.siteWebControllerDidChangeState(self)
     }

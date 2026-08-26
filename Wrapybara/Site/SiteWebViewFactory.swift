@@ -192,10 +192,109 @@ enum SiteWebViewFactory {
         // a web view in a box" tell. Setting it here would override that inference and
         // reintroduce the flash.
 
-        if #available(macOS 13.3, *) {
-            webView.isInspectable = wrap.behavior.isWebInspectorEnabled
-        }
+        setInspectionAllowed(wrap.behavior.isWebInspectorEnabled, on: webView)
 
         return webView
+    }
+
+    // MARK: Web Inspector
+
+    /// The private `WKWebView` property holding WebKit's inspector handle, and the
+    /// selectors that drive it.
+    ///
+    /// The public surface stops at *allowing* inspection; nothing public *raises*
+    /// the inspector. These names are undocumented but have been stable for a
+    /// decade, so they get the same contract as the throttling keys above:
+    /// probed before use, skipped loudly when gone.
+    private static let inspectorHandleKey = "_inspector"
+    private static let inspectorVisibilityKey = "isVisible"
+    private static let showInspectorSelector = NSSelectorFromString("show")
+    private static let hideInspectorSelector = NSSelectorFromString("hide")
+
+    /// Writes the wrap's inspector permission onto a web view.
+    ///
+    /// One setting, two switches, because each alone leaves one path dead:
+    /// `developerExtrasEnabled` is what puts Inspect Element into the page's own
+    /// right-click menu (the local inspector), while `isInspectable` is what lets
+    /// Safari's Develop menu attach to the app's pages. Safe to write again while
+    /// the app runs — WebKit pushes preference changes into the live process,
+    /// which is what makes the toggle follow edits from Wrapybara without a
+    /// rebuild or relaunch.
+    static func setInspectionAllowed(_ allowed: Bool, on webView: WKWebView) {
+        // A revocation takes down an inspector already up: WebKit closes only the
+        // remote attach on its own, the local window would stay open.
+        if !allowed { hideInspectorIfVisible(of: webView) }
+        setDeveloperExtras(allowed, on: webView.configuration.preferences)
+        if #available(macOS 13.3, *) {
+            webView.isInspectable = allowed
+        }
+    }
+
+    /// The `WKPreferences` key behind the context menu's Inspect Element.
+    ///
+    /// A macOS-only WebKit preference with no Swift surface in current SDKs —
+    /// reachable only through KVC, so it rides the same probe-before-write
+    /// contract as the throttling keys above.
+    static let developerExtrasPreferenceKey = "developerExtrasEnabled"
+
+    private static func setDeveloperExtras(_ allowed: Bool, on preferences: WKPreferences) {
+        guard respondsToSetter(for: developerExtrasPreferenceKey, on: preferences) else {
+            logger.warning("WebKit no longer knows \(developerExtrasPreferenceKey, privacy: .public); Inspect Element will not appear in context menus")
+            return
+        }
+        preferences.setValue(allowed, forKey: developerExtrasPreferenceKey)
+    }
+
+    /// Whether raising the inspector can possibly work here.
+    ///
+    /// The View menu asks before validating its item, so a WebKit missing the
+    /// machinery greys the entry out instead of offering a button that does
+    /// nothing — and what it checks is exactly what `toggleInspector` will call.
+    static func canToggleInspector(of webView: WKWebView) -> Bool {
+        guard let inspector = inspectorObject(of: webView) else { return false }
+        return inspector.responds(to: showInspectorSelector)
+            || inspector.responds(to: hideInspectorSelector)
+    }
+
+    /// Raises the inspector — or lowers it when already showing, the way Safari's
+    /// ⌥⌘I behaves. Returns whether anything happened, so a caller can stay quiet
+    /// rather than beep at machinery that isn't there.
+    @discardableResult
+    static func toggleInspector(of webView: WKWebView) -> Bool {
+        guard let inspector = inspectorObject(of: webView) else {
+            logger.warning("WebKit no longer knows \(inspectorHandleKey, privacy: .public); the inspector cannot be raised from the menu bar")
+            return false
+        }
+
+        let selector = isInspectorVisible(inspector)
+            ? hideInspectorSelector : showInspectorSelector
+        guard inspector.responds(to: selector) else {
+            logger.warning("WebKit's inspector no longer answers \(NSStringFromSelector(selector), privacy: .public); Show Web Inspector cannot toggle")
+            return false
+        }
+        inspector.perform(selector)
+        return true
+    }
+
+    /// Hides the inspector when it is up. Probed end to end, so a WebKit missing
+    /// any piece of the handle makes revocation's tidy-up a quiet no-op.
+    private static func hideInspectorIfVisible(of webView: WKWebView) {
+        guard let inspector = inspectorObject(of: webView),
+              isInspectorVisible(inspector),
+              inspector.responds(to: hideInspectorSelector) else { return }
+        inspector.perform(hideInspectorSelector)
+    }
+
+    /// Reads `_inspector`. Probed first because KVC on a key WebKit no longer
+    /// knows raises an uncatchable exception — the same contract as the setter
+    /// probes above.
+    private static func inspectorObject(of webView: WKWebView) -> NSObject? {
+        guard webView.responds(to: NSSelectorFromString(inspectorHandleKey)) else { return nil }
+        return webView.value(forKey: inspectorHandleKey) as? NSObject
+    }
+
+    private static func isInspectorVisible(_ inspector: NSObject) -> Bool {
+        inspector.responds(to: NSSelectorFromString(inspectorVisibilityKey))
+            && ((inspector.value(forKey: inspectorVisibilityKey) as? Bool) ?? false)
     }
 }
