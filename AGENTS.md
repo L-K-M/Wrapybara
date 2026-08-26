@@ -166,7 +166,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   display the window was on unplugged (the window must land wholly on the screen
   it overlapped most, visible frame honoured), and both with several windows on
   different displays; a wrap with *No chrome* — the
-  window must drag from the top strip (including from an unfocused state),
+  window must drag from the top strip and from the title name (including from
+  an unfocused state),
   double-click there must follow the system title-bar setting, and no document
   proxy icon may appear next to the title; editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older

@@ -272,8 +272,10 @@ Not one feature — the absence of twenty small failures.
   only, or no chrome — the last runs the page edge to edge under a transparent
   title bar with the traffic lights floating over it, and a transparent strip
   across the top keeps the window draggable (double-click there zooms, per the
-  system setting). The window gets no document proxy icon: a page URL isn't a
-  file, and `representedURL` would offer a drag bound to fail.
+  system setting). The strip draws the title too: the system renders it as a
+  text field in the overlay above the strip, where a click on the name would
+  die instead of dragging. The window gets no document proxy icon: a page URL
+  isn't a file, and `representedURL` would offer a drag bound to fail.
 - **Find.** WebKit's own `find(_:configuration:)`, so it's the same search Safari
   does, with WebKit's highlighting and scroll-into-view.
 - **Downloads.** `WKDownload` into `~/Downloads` with a published `Progress` (Dock

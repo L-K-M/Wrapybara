@@ -12,6 +12,9 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
 
     let webController: SiteWebController
     private let findBar: FindBarController
+    /// Weak: the container view owns it; the controller only pokes it for a
+    /// redraw when the title changes (it draws the title in No chrome).
+    private weak var dragStrip: WindowDragStrip?
     private let behavior: WrapBehavior
     private let wrapName: String
 
@@ -67,7 +70,15 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)
-        window.titlebarAppearsTransparent = wrap.behavior.chrome.hasTransparentTitleBar
+        if wrap.behavior.chrome.hasTransparentTitleBar {
+            window.titlebarAppearsTransparent = true
+            // The system renders the title as a text field in the title-bar
+            // overlay, which sits above the content view: a click on the name
+            // lands there and dies instead of reaching the drag strip. Hide the
+            // rendered title — the drag strip draws it. `title` itself stays set
+            // for the Dock badge, native tabs, Mission Control and Handoff.
+            window.titleVisibility = .hidden
+        }
         window.isReleasedWhenClosed = false
         // Native tabs. The identifier has to be shared by every window that may tab
         // together, and `automatic` respects the user's System Settings choice for when
@@ -106,6 +117,7 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
             let strip = WindowDragStrip()
             strip.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(strip)
+            dragStrip = strip
             stripConstraints = [
                 strip.topAnchor.constraint(equalTo: container.topAnchor),
                 strip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -366,6 +378,9 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         // Prefer the page's title, the way a browser tab does — it's what makes native
         // tabs useful — but never show an empty title bar.
         window?.title = pageTitle.isEmpty ? wrapName : pageTitle
+        // In No chrome the drag strip draws the title; nothing else tells it
+        // the string changed.
+        dragStrip?.needsDisplay = true
         // Deliberately no `representedURL`: that API is for documents, and pointed
         // at a page URL it draws a proxy icon whose drag fails with a "document
         // could not be found" error, and turns the title into a document button
