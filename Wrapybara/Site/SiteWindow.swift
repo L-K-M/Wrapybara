@@ -22,7 +22,10 @@ import AppKit
 /// quit-on-last-close and click-the-Dock-icon-to-reopen logic consult visibility
 /// too, and those must keep seeing the truth. Re-shown windows re-arm: today's
 /// reopen path always builds a fresh `SiteWindow`, but if a future path ever
-/// orders a closed one back in, honesty must not outlive it.
+/// orders a closed one back in, honesty must not outlive it. A created-but-never-
+/// shown window answers visible as well — safe because the app presents every
+/// window it creates within the same turn, and its reopen logic keys off the
+/// controller list rather than off visibility.
 final class SiteWindow: NSWindow {
 
     /// False from the moment the window's close begins; flips `isVisible` back to
