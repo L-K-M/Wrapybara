@@ -43,8 +43,15 @@ final class SiteWindow: NSWindow {
 
     /// Safety net for a path today's app never takes: a closed window ordered in
     /// again must re-arm, or its page reads hidden to WebKit forever — the very
-    /// bug this class exists to fix. For a live window this is a no-op (already
-    /// true).
+    /// bug this class exists to fix. Re-arming on `order(_:relativeTo:)` catches
+    /// every programmatic re-show (`orderFront`, `orderFrontRegardless`, tabbing);
+    /// `makeKeyAndOrderFront` stays for AppKit paths that bypass the primitive.
+    /// For a live window both are no-ops (already true).
+    override func order(_ place: NSWindow.OrderingMode, relativeTo otherWindow: Int) {
+        if place != .out { keepsPageLive = true }
+        super.order(place, relativeTo: otherWindow)
+    }
+
     override func makeKeyAndOrderFront(_ sender: Any?) {
         keepsPageLive = true
         super.makeKeyAndOrderFront(sender)

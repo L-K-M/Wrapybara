@@ -90,8 +90,9 @@ final class SiteWindowTests: XCTestCase {
     /// where no tab group forms — but where it does, the assertion holds by
     /// construction, because the override answers for managed windows.
     func testTabGroupSiteWindowsStillReportVisible() throws {
+        let previousTabbing = NSWindow.allowsAutomaticWindowTabbing
         NSWindow.allowsAutomaticWindowTabbing = true
-        defer { NSWindow.allowsAutomaticWindowTabbing = false }
+        defer { NSWindow.allowsAutomaticWindowTabbing = previousTabbing }
 
         let selected = makeSiteWindow()
         let background = makeSiteWindow()
