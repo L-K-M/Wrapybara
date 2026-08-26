@@ -142,9 +142,13 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   the CSS/SVG animation timelines and fires `visibilitychange` — which is the
   *other* half of the same bug, and the half that makes a chat page need a reload
   rather than just catch up. Setting `WKWebView`'s
-  `_windowOcclusionDetectionEnabled` false is what removes it. Miniaturised and ⌘H
-  windows are out of reach (`NSWindow.isVisible` is checked first) and are meant to
-  be; see `PLAN.md`.
+  `_windowOcclusionDetectionEnabled` false is what removes it.
+- **A window hidden with ⌘H, or a background native tab, must not mark its page
+  hidden either** (`SiteWindow`). Both make `NSWindow.isVisible` false while the
+  app is still frontmost — no WebKit switch reaches that check (a miniaturised
+  window stays ordered in and is covered by the occlusion switch above), so
+  site-app windows override `isVisible` to report visible until their close begins,
+  then answer honestly again for AppKit's quit/reopen logic.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
 
@@ -172,8 +176,9 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   proxy icon may appear next to the title; editing a boost while the built
   app is running; the element picker on a single-page app; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
-  *and animating* while another app's window covers it, and that catches up without
-  a reload after being miniaturised; a failed navigation with an
+  *and animating* while another app's window covers it, that keeps updating while
+  miniaturised and while parked on a background tab, and that catches up without
+  a reload after a display sleeps and wakes; a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this
