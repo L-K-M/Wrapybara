@@ -77,4 +77,36 @@ final class SiteWebViewFactoryTests: XCTestCase {
         XCTAssertFalse(webView.value(forKey: key) as? Bool ?? true,
                        "a covered window must not put its page into the hidden state")
     }
+
+    // MARK: Web Inspector
+
+    /// Inspection is opt-in per wrap, and "off" has to mean both switches off:
+    /// the preference that adds Inspect Element to the context menu, and the
+    /// flag that lets Safari's Develop menu attach. Either left on exposes a
+    /// page nobody asked to expose.
+    func testMakeWebViewLeavesEveryInspectionSwitchOffByDefault() {
+        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
+        XCTAssertFalse(webView.configuration.preferences.developerExtrasEnabled,
+                       "Inspect Element must not appear unless the wrap allows it")
+        if #available(macOS 13.3, *) {
+            XCTAssertFalse(webView.isInspectable,
+                           "Safari must not list the app in its Develop menu unless the wrap allows it")
+        }
+    }
+
+    /// Enabling the toggle turns on both switches. They are not interchangeable:
+    /// `isInspectable` alone — all the factory shipped for a while — permits
+    /// remote attach from Safari but never puts Inspect Element in the page's
+    /// own context menu, so a user flipping the toggle saw nothing happen.
+    func testMakeWebViewTurnsOnBothInspectionSwitchesWhenTheWrapAllows() {
+        var wrap = fixtureWrap()
+        wrap.behavior.isWebInspectorEnabled = true
+        let webView = SiteWebViewFactory.makeWebView(for: wrap, messageHandler: StubHandler())
+        XCTAssertTrue(webView.configuration.preferences.developerExtrasEnabled,
+                      "Inspect Element belongs in the context menu when the wrap allows it")
+        if #available(macOS 13.3, *) {
+            XCTAssertTrue(webView.isInspectable,
+                          "Safari must be able to attach when the wrap allows it")
+        }
+    }
 }
