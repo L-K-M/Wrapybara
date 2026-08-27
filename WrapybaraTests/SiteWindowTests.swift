@@ -36,13 +36,38 @@ final class SiteWindowTests: XCTestCase {
     /// background both do to a window — must read invisible again. That falling
     /// edge is what lets WebKit mark the page hidden, and the matching rising edge
     /// on re-show is what fires the `visibilitychange` a site catches up on.
+    /// Skipped where showing never took: without WindowServer cooperation the
+    /// window was invisible throughout and the assertion would hold vacuously.
     func testOrderedOutWindowReportsItselfInvisible() throws {
         let controller = makeController()
         let window = try XCTUnwrap(controller.window)
         window.orderFrontRegardless()
+        try XCTSkipUnless(window.isVisible,
+                          "no WindowServer cooperation; premise unpinned here")
         window.orderOut(nil)
         XCTAssertFalse(window.isVisible,
                        "an ordered-out window must not claim to be visible to WebKit")
+        window.close()
+    }
+
+    /// The other half of honesty: a *shown* window must answer visible, or the
+    /// page would read hidden for its whole life — the mirror image of the lie
+    /// this file exists to keep out. A plain-window control pins the premise
+    /// first, so a headless environment skips rather than passing vacuously.
+    func testShownWindowReportsItselfVisible() throws {
+        let plain = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                             styleMask: [.titled], backing: .buffered, defer: false)
+        plain.isReleasedWhenClosed = false
+        plain.orderFrontRegardless()
+        defer { plain.close() }
+        try XCTSkipUnless(plain.isVisible,
+                          "no WindowServer cooperation; premise unpinned here")
+
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
+        window.orderFrontRegardless()
+        XCTAssertTrue(window.isVisible,
+                      "a shown window must report itself visible to WebKit")
         window.close()
     }
 }

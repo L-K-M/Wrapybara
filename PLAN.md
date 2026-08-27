@@ -351,8 +351,9 @@ Not one feature — the absence of twenty small failures.
   system sleep, leave it away long enough to matter (for system sleep, long enough
   that its connections die) and confirm the page shows current state the moment it
   is back — *without a manual reload*. While hidden, a timer-driven page must keep
-  advancing (title/badge updates keep arriving). The unit tests pin the keys and
-  the honest window answers, not WebKit's behaviour or App Nap. A key retired
+  advancing (title/badge updates keep arriving). The unit tests pin the keys
+  (`SiteWebViewFactoryTests`) and the honest window answers (`SiteWindowTests`),
+  not WebKit's behaviour or App Nap. A key retired
   upstream only shows up on the macOS that retired it, so run the suite on the
   oldest supported macOS and a current beta before a release — and run the check
   with a site users actually wrap, not only a timer-driven test page.

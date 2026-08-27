@@ -88,30 +88,30 @@ enum SiteWebViewFactory {
         }
     }
 
-    /// Where the liveness opt-outs deliberately stop: page *visibility* is never
-    /// faked.
-    ///
-    /// Two earlier fixes went further than the keys above and made the page believe
-    /// it was permanently visible — `_windowOcclusionDetectionEnabled` false on the
-    /// web view, and a window subclass whose `isVisible` answered true while the
-    /// window was hidden. That pinned `document.visibilityState` to `"visible"` for
-    /// the page's whole life, so `visibilitychange` never fired — and that silenced
-    /// the one signal a modern web app uses to *recover*. Streams die for reasons no
-    /// embedder switch controls: system sleep cuts every TCP connection (this app
-    /// deliberately allows idle sleep — see `SiteAppDelegate`), networks change,
-    /// proxies and servers drop idle connections. A page in a real browser heals
-    /// from all of that the moment the user comes back, because the hidden → visible
-    /// transition — delivered on uncovering, un-minimising, unhiding, tab switch and
-    /// display wake — is what triggers its refetch-on-focus / resubscribe path. A
-    /// page that was never told it was hidden is never told it is visible again
-    /// either; it just sits on whatever state it had when its connection died. That
-    /// was the "the wrap stops updating until a manual reload" bug.
-    ///
-    /// So the policy is: keep the page *running* while hidden (the preference keys
-    /// above, plus the App Nap assertion in `SiteAppDelegate`), and report
-    /// visibility honestly the way Safari does. The site pauses what it chooses
-    /// while hidden and — crucially — resyncs itself on every return, exactly as it
-    /// does in the browser its authors tested in.
+    // Where the liveness opt-outs deliberately stop: page *visibility* is never
+    // faked.
+    //
+    // Two earlier fixes went further than the keys above and made the page believe
+    // it was permanently visible — `_windowOcclusionDetectionEnabled` false on the
+    // web view, and a window subclass whose `isVisible` answered true while the
+    // window was hidden. That pinned `document.visibilityState` to `"visible"` for
+    // the page's whole life, so `visibilitychange` never fired — and that silenced
+    // the one signal a modern web app uses to *recover*. Streams die for reasons no
+    // embedder switch controls: system sleep cuts every TCP connection (this app
+    // deliberately allows idle sleep — see `SiteAppDelegate`), networks change,
+    // proxies and servers drop idle connections. A page in a real browser heals
+    // from all of that the moment the user comes back, because the hidden → visible
+    // transition — delivered on uncovering, un-minimising, unhiding, tab switch and
+    // display wake — is what triggers its refetch-on-focus / resubscribe path. A
+    // page that was never told it was hidden is never told it is visible again
+    // either; it just sits on whatever state it had when its connection died. That
+    // was the "the wrap stops updating until a manual reload" bug.
+    //
+    // So the policy is: keep the page *running* while hidden (the preference keys
+    // above, plus the App Nap assertion in `SiteAppDelegate`), and report
+    // visibility honestly the way Safari does. The site pauses what it chooses
+    // while hidden and — crucially — resyncs itself on every return, exactly as it
+    // does in the browser its authors tested in.
 
     /// - Parameter handler: receives the page's messages — the picker's selection, the
     ///   notification shim's payloads, soft navigations.

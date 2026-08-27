@@ -65,16 +65,22 @@ final class SiteWebViewFactoryTests: XCTestCase {
     /// reload" bug. Compared against a vanilla web view rather than a hardcoded
     /// value, so the pin survives an upstream default change; probed first because
     /// `value(forKey:)` on a key WebKit retired raises uncatchably.
-    func testMakeWebViewLeavesWindowOcclusionDetectionAtWebKitsDefault() {
+    func testMakeWebViewLeavesWindowOcclusionDetectionAtWebKitsDefault() throws {
         let key = "windowOcclusionDetectionEnabled"
         let vanilla = WKWebView(frame: .zero)
         guard SiteWebViewFactory.respondsToSetter(for: key, on: vanilla) else {
             // WebKit retired the key: there is nothing the factory could break.
             return
         }
+        // Unwrapped loudly rather than compared as optionals: `nil == nil` would
+        // pass, and a WebKit that stops bridging the key to Bool is exactly the
+        // kind of change this pin exists to catch.
         let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
-        XCTAssertEqual(webView.value(forKey: key) as? Bool,
-                       vanilla.value(forKey: key) as? Bool,
+        let produced = try XCTUnwrap(webView.value(forKey: key) as? Bool,
+                                     "\(key) no longer reads back as Bool on the factory's view")
+        let baseline = try XCTUnwrap(vanilla.value(forKey: key) as? Bool,
+                                     "\(key) no longer reads back as Bool on a vanilla view")
+        XCTAssertEqual(produced, baseline,
                        "the factory must not fake page visibility by touching occlusion detection")
     }
 
