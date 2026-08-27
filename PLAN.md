@@ -353,15 +353,25 @@ Not one feature — the absence of twenty small failures.
      ANALYSIS.md idea), never a global always-visible window again.
 
   The cost of the opt-outs is battery when a wrap is hidden; that is the point.
-  They ride undocumented WebKit keys set via KVC — fine under Developer ID
-  distribution, but re-review before any Mac App Store submission.
+  The three timer keys are undocumented WebKit preferences set via KVC — fine
+  under Developer ID distribution, but re-review before any Mac App Store
+  submission. (`inactiveSchedulingPolicy` is public API, and the App Nap
+  activity is ordinary `ProcessInfo` — neither needs that caution.)
 
   Release check: open a streaming page in a wrap and, for each of covered,
   miniaturised, background native tab, ⌘H-hidden, display sleep/wake and a full
   system sleep, leave it away long enough to matter (for system sleep, long enough
   that its connections die) and confirm the page shows current state the moment it
-  is back — *without a manual reload*. While hidden, a timer-driven page must keep
-  advancing (title/badge updates keep arriving). The unit tests pin the keys
+  is back — *without a manual reload* — with the same page open in Safari
+  alongside as the oracle: the wrap must recover no worse than Safari does in
+  each state. While hidden, a timer-driven page must keep advancing (title/badge
+  updates keep arriving) unless the site itself pauses its timers on
+  `visibilitychange`. And check the mechanism, not only the outcome:
+  `document.visibilityState` must read `"hidden"` in each of those states
+  (covering must be complete — occlusion counts a partly visible window as
+  visible) and flip back to `"visible"` on return, because a page pinned to
+  `"visible"` would pass every outcome check above without ever firing the
+  `visibilitychange` this design depends on. The unit tests pin the keys
   (`SiteWebViewFactoryTests`) and the honest window answers
   (`SiteWindowVisibilityTests`), not WebKit's behaviour or App Nap. A key retired
   upstream only shows up on the macOS that retired it, so run the suite on the

@@ -181,9 +181,10 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   being covered by another app's window, miniaturised, parked on a background
   native tab, hidden with ⌘H, a display sleep/wake, and a full system sleep long
   enough to cut its connections — and whose timer-driven updates (title → Dock
-  badge, notifications) keep arriving while it is hidden — the same page in
-  Safari, run side by side, is the pass oracle: if it needs a manual reload
-  there, so may the wrap; if it catches up there, the wrap must; a failed navigation with an
+  badge, notifications) keep arriving while it is hidden, unless the site itself
+  pauses them on `visibilitychange` — the same page in Safari, run side by side,
+  is the pass oracle: if it needs a manual reload there, so may the wrap; if it
+  catches up there, the wrap must; a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this
