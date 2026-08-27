@@ -2,12 +2,12 @@ import XCTest
 import WebKit
 @testable import Wrapybara
 
-/// The testable part of the web-view factory: that a wrap's web view opts out of
-/// everything macOS does to a page whose window it thinks nobody is looking at —
-/// hidden-page timer throttling, process suppression, and (the one that actually
-/// stops a streaming chat) treating a covered window as a hidden page. All of it
-/// rides undocumented WebKit keys, so these tests pin both that they're set and
-/// that the keys are still ones WebKit knows.
+/// The testable part of the web-view factory: that a wrap's web view keeps
+/// *running* when macOS thinks nobody is looking — hidden-page timer throttling
+/// and process suppression are opted out — while page *visibility* stays honest,
+/// so `visibilitychange` still tells the site to catch up when the user returns.
+/// The opt-outs ride undocumented WebKit keys, so these tests pin both that
+/// they're set and that the keys are still ones WebKit knows.
 final class SiteWebViewFactoryTests: XCTestCase {
 
     /// A message-handler stub, so `makeWebView` has something to register.
@@ -58,24 +58,24 @@ final class SiteWebViewFactoryTests: XCTestCase {
         }
     }
 
-    /// The occlusion opt-out is the one that keeps a *covered* window's page in the
-    /// visible state, and so keeps `requestAnimationFrame`, CSS animation and the
-    /// page's own streaming code running rather than firing `visibilitychange` at
-    /// it. Read off a real web view, because that's where the key lives — it is a
-    /// `WKWebView` property, not a preference, so nothing in the configuration
-    /// would catch its loss.
-    func testMakeWebViewKeepsThePageVisibleWhileTheWindowIsCovered() {
-        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
-        let key = SiteWebViewFactory.windowOcclusionDetectionKey
-        // Same order as `assertThrottlingDisabled`: probe before reading, because
-        // `value(forKey:)` on a retired key raises uncatchably, and halt rather than
-        // record — `XCTFail` alone would let the read through.
-        guard SiteWebViewFactory.respondsToSetter(for: key, on: webView) else {
-            XCTFail("\(key) is no longer a known WKWebView key")
+    /// The factory must leave WebKit's occlusion detection alone. Disabling it (an
+    /// earlier fix) pinned `document.visibilityState` to "visible" for the page's
+    /// whole life, which silenced the `visibilitychange` transitions a web app uses
+    /// to resync when the user comes back — the "wrap stops updating until a manual
+    /// reload" bug. Compared against a vanilla web view rather than a hardcoded
+    /// value, so the pin survives an upstream default change; probed first because
+    /// `value(forKey:)` on a key WebKit retired raises uncatchably.
+    func testMakeWebViewLeavesWindowOcclusionDetectionAtWebKitsDefault() {
+        let key = "windowOcclusionDetectionEnabled"
+        let vanilla = WKWebView(frame: .zero)
+        guard SiteWebViewFactory.respondsToSetter(for: key, on: vanilla) else {
+            // WebKit retired the key: there is nothing the factory could break.
             return
         }
-        XCTAssertFalse(webView.value(forKey: key) as? Bool ?? true,
-                       "a covered window must not put its page into the hidden state")
+        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
+        XCTAssertEqual(webView.value(forKey: key) as? Bool,
+                       vanilla.value(forKey: key) as? Bool,
+                       "the factory must not fake page visibility by touching occlusion detection")
     }
 
     // MARK: Web Inspector

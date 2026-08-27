@@ -134,21 +134,19 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   pages freeze mid-stream — the "app stopped updating but the server kept running"
   bug. `.userInitiatedAllowingIdleSystemSleep` only; nothing that pins the display
   or system awake.
-- **A covered window must not mark its page hidden**
-  (`SiteWebViewFactory.keepPageVisibleWhileWindowIsCovered`). The App Nap activity
-  and the three `WKPreferences` throttling keys are not enough on their own: WebKit
-  computes visibility in `PageClientImpl::isViewVisible`, and losing
-  `NSWindowOcclusionStateVisible` alone suspends `requestAnimationFrame`, suspends
-  the CSS/SVG animation timelines and fires `visibilitychange` — which is the
-  *other* half of the same bug, and the half that makes a chat page need a reload
-  rather than just catch up. Setting `WKWebView`'s
-  `_windowOcclusionDetectionEnabled` false is what removes it.
-- **A window hidden with ⌘H, or a background native tab, must not mark its page
-  hidden either** (`SiteWindow`). Both make `NSWindow.isVisible` false while the
-  app is still frontmost — no WebKit switch reaches that check (a miniaturised
-  window stays ordered in and is covered by the occlusion switch above), so
-  site-app windows override `isVisible` to report visible until their close begins,
-  then answer honestly again for AppKit's quit/reopen logic.
+- **Never fake page visibility.** Keep the page *running* while hidden — that is
+  what the App Nap activity and the three `WKPreferences` throttling keys are for —
+  but let WebKit report hidden/visible honestly: no occlusion-detection opt-out
+  (`_windowOcclusionDetectionEnabled`), no `NSWindow.isVisible` override. Both
+  existed once and *caused* the "stops updating until a manual reload" bug: with
+  `document.visibilityState` pinned to `"visible"`, `visibilitychange` never fired,
+  and that transition is the signal a web app uses to resynchronise when the user
+  comes back. Streams die for reasons no embedder switch controls — system sleep
+  cuts every TCP connection (idle sleep is deliberately allowed), networks change,
+  idle connections time out — and a page that never hears hidden → visible never
+  runs its own catch-up. The parity target is Safari: the site pauses what it
+  chooses while hidden and resyncs on return, minus Safari's background-tab
+  throttling and process suppression.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
 
@@ -177,10 +175,12 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   app is running; the element picker on a single-page app; Show Web Inspector
   (⌥⌘I) — it must open in its own window with nothing flickering, because an
   *attached* inspector fights the container's Auto Layout; a wrap built by an older
-  version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
-  *and animating* while another app's window covers it, that keeps updating while
-  miniaturised and while parked on a background tab, and that catches up without
-  a reload after a display sleeps and wakes; a failed navigation with an
+  version (the rebuild prompt); a streaming page (e.g. a chat) that shows current
+  state, *without a manual reload*, the moment its window comes back from each of:
+  being covered by another app's window, miniaturised, parked on a background
+  native tab, hidden with ⌘H, a display sleep/wake, and a full system sleep long
+  enough to cut its connections — and whose timer-driven updates (title → Dock
+  badge, notifications) keep arriving while it is hidden; a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this
