@@ -135,7 +135,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   bug. `.userInitiatedAllowingIdleSystemSleep` only; nothing that pins the display
   or system awake.
 - **Never fake page visibility.** Keep the page *running* while hidden — that is
-  what the App Nap activity and the three `WKPreferences` throttling keys are for —
+  what the App Nap activity, the three `WKPreferences` throttling keys, and the
+  macOS 14 `inactiveSchedulingPolicy = .none` opt-out are for —
   but let WebKit report hidden/visible honestly: no occlusion-detection opt-out
   (`_windowOcclusionDetectionEnabled`), no `NSWindow.isVisible` override. Both
   existed once and *caused* the "stops updating until a manual reload" bug: with

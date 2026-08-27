@@ -58,6 +58,20 @@ final class SiteWebViewFactoryTests: XCTestCase {
         }
     }
 
+    /// The modern half of the keep-running contract: apps linked against the
+    /// macOS 14 SDK get a RunningBoard-based mechanism that suspends a
+    /// non-visible page's WebContent process regardless of the legacy keys
+    /// above. The factory opts out with the public policy, so a hidden wrap
+    /// keeps running instead of freezing mid-stream.
+    func testMakeWebViewKeepsInactivePagesScheduled() throws {
+        guard #available(macOS 14.0, *) else {
+            throw XCTSkip("inactiveSchedulingPolicy arrived with macOS 14")
+        }
+        let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
+        XCTAssertEqual(webView.configuration.preferences.inactiveSchedulingPolicy, .none,
+                       "a hidden page must not be suspended or throttled by RunningBoard")
+    }
+
     /// The factory must leave WebKit's occlusion detection alone. Disabling it (an
     /// earlier fix) pinned `document.visibilityState` to "visible" for the page's
     /// whole life, which silenced the `visibilitychange` transitions a web app uses

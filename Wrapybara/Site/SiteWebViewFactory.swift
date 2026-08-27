@@ -86,6 +86,20 @@ enum SiteWebViewFactory {
             }
             configuration.preferences.setValue(false, forKey: key)
         }
+
+        // The keys above are WebKit's legacy (macOS 10.12-era) controls. Apps
+        // linked against the macOS 14 SDK are also subject to a second,
+        // RunningBoard-based mechanism that suspends or throttles the WebContent
+        // process of a page that isn't visible — independently of those keys.
+        // `.none` is its public opt-out (it maps to
+        // `backgroundWebContentRunningBoardThrottlingEnabled(false)` inside
+        // WebKit), so a hidden wrap's page keeps actually running — its timers,
+        // its stream, its title → Dock badge updates — rather than being frozen
+        // mid-stream and having to catch up on the became-visible edge. Public
+        // API, so none of the probe-before-KVC dance is needed.
+        if #available(macOS 14.0, *) {
+            configuration.preferences.inactiveSchedulingPolicy = .none
+        }
     }
 
     // Where the liveness opt-outs deliberately stop: page *visibility* is never

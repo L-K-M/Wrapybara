@@ -23,6 +23,21 @@ None. All twenty-three changes from the glm and k3 reviews (`#2`–`#24`) are on
 
 ## Bugs
 
+### 🐛 P1 — in-app popups return a web view built with the wrong configuration
+`SiteAppDelegate`'s `onNeedsPopupWindow` answers WebKit's `createWebViewWith` by
+building a whole new `SiteWindowController`, whose web view comes from
+`SiteWebViewFactory.makeWebView` — a **fresh** `WKWebViewConfiguration`, not the
+one WebKit passed in. WKWebView's documented contract is that the returned web
+view *must* be created with the provided configuration; violating it raises
+`NSInternalInconsistencyException` ("Returned WKWebView was not created with the
+given configuration"), so any in-app `window.open` / kept-in-app `target="_blank"`
+popup — OAuth sign-in windows are the canonical case — crashes the wrap.
+**Fix:** thread the incoming configuration through to the popup's
+`SiteWebController` (an initializer variant that builds the web view from the
+given configuration, applying the factory's settings to it) instead of minting a
+new one. Found during the visibility-honesty review (PR #33); out of that PR's
+scope.
+
 ### 🐛 P2 — notification clicks route to whichever window is front
 `SiteAppDelegate.handleNotificationClick(pageID:)` evaluates
 `notificationClicked(id)` in the **front** window's web view. A notification posted by

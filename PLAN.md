@@ -321,9 +321,13 @@ Not one feature — the absence of twenty small failures.
 
   1. **DOM timers** are throttled to about once a second, and after a delay the
      WebContent process is suspended outright. Three undocumented `WKPreferences`
-     keys turn that off, so a hidden wrap's timers keep firing at full speed: the
-     title (→ Dock badge) keeps updating and notifications keep arriving. Whether
-     a *stream* keeps flowing while hidden is the site's own choice (item 3).
+     keys turn the legacy half of that off, and the public
+     `inactiveSchedulingPolicy = .none` (macOS 14) turns off the RunningBoard
+     successor that would otherwise suspend a hidden page's WebContent process
+     regardless of those keys. So a hidden wrap's timers keep firing at full
+     speed: the title (→ Dock badge) keeps updating and notifications keep
+     arriving. Whether a *stream* keeps flowing while hidden is the site's own
+     choice (item 3).
   2. **App Nap** on the app process, held off with a `ProcessInfo` activity — see
      the bullet above.
   3. **Page visibility is reported honestly — deliberately.** WebKit decides
