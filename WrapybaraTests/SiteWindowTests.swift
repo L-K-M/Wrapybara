@@ -41,13 +41,14 @@ final class SiteWindowTests: XCTestCase {
     func testOrderedOutWindowReportsItselfInvisible() throws {
         let controller = makeController()
         let window = try XCTUnwrap(controller.window)
+        // Deferred so the skip path cleans up too — XCTSkipUnless throws.
+        defer { window.close() }
         window.orderFrontRegardless()
         try XCTSkipUnless(window.isVisible,
                           "no WindowServer cooperation; premise unpinned here")
         window.orderOut(nil)
         XCTAssertFalse(window.isVisible,
                        "an ordered-out window must not claim to be visible to WebKit")
-        window.close()
     }
 
     /// The other half of honesty: a *shown* window must answer visible, or the
@@ -65,9 +66,9 @@ final class SiteWindowTests: XCTestCase {
 
         let controller = makeController()
         let window = try XCTUnwrap(controller.window)
+        defer { window.close() }
         window.orderFrontRegardless()
         XCTAssertTrue(window.isVisible,
                       "a shown window must report itself visible to WebKit")
-        window.close()
     }
 }

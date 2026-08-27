@@ -46,7 +46,8 @@ that site — and behaves like something a person wrote on purpose.
   freeze its web content, and WebKit's background timer throttling is switched off.
   The page still sees the normal hidden/visible transitions a browser gives it, so
   when you come back it catches up the way it does in Safari — including after a
-  sleep that cut its connections, with no reload needed.
+  sleep that cut its connections — usually with no reload needed (that half is the
+  site's own resync logic, the same one it uses in a browser tab).
 - **Dock badge** read out of the page title, the way a browser tab does it.
 - **Handoff** — pick the page up on your iPhone.
 - **A few megabytes**, because WebKit is already on your Mac. Not a few hundred.
