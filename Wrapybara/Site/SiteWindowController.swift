@@ -76,6 +76,11 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         // ⌘H-hidden or parked behind a native tab, rAF and the CSS animation
         // timelines suspend and the page sees `visibilitychange` — its timers keep
         // running through the factory's opt-outs, and it resyncs itself on return.
+        // That recovery is the site's own became-visible logic — assumed, not
+        // guaranteed: a site that closes its stream on hidden and never
+        // resubscribes stays stale in Safari too. If a real wrap needs more, add a
+        // per-wrap liveness opt-in (idea filed in ANALYSIS.md) rather than
+        // restoring a global always-visible window.
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)

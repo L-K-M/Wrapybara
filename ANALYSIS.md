@@ -31,7 +31,9 @@ one WebKit passed in. WKWebView's documented contract is that the returned web
 view *must* be created with the provided configuration; violating it raises
 `NSInternalInconsistencyException` ("Returned WKWebView was not created with the
 given configuration"), so any in-app `window.open` / kept-in-app `target="_blank"`
-popup — OAuth sign-in windows are the canonical case — crashes the wrap.
+popup — OAuth sign-in windows are the canonical case — crashes the wrap. Repro:
+trigger any in-app popup (e.g. `window.open("")`); WebKit raises the exception
+synchronously when the delegate returns the mismatched view.
 **Fix:** thread the incoming configuration through to the popup's
 `SiteWebController` (an initializer variant that builds the web view from the
 given configuration, applying the factory's settings to it) instead of minting a
@@ -324,6 +326,22 @@ into the same pass. (k3 K26.)
 ---
 
 ## UX, convenience, delight
+
+### 💡 P2 — a wake/network resync nudge for wraps of sites without resync-on-visible
+The honest-visibility policy (PR #33) hands recovery to the site's own
+became-visible logic, which is the browser contract — but two edges stay
+uncovered, in Safari and in a wrap alike: the single post-wake `visibilitychange`
+can race the network re-associating (the one refetch fails and no further edge
+comes while the window sits frontmost), and a transport that dies while the
+window stays visible gets no edge at all. Every shipping wrapper that closes
+these does it host-side: observe `NSWorkspace` `didWakeNotification` /
+`screensDidWakeNotification` and an `NWPathMonitor`, and on wake or
+path-restored (debounced, after the wrap's origin answers a cheap probe) nudge
+each live web view — synthetic `visibilitychange`/`focus`, an `offline`→`online`
+pair for reconnect listeners; Electron apps (teams-for-linux, Franz) reload
+outright after long suspensions. **Scope deliberately:** per-wrap opt-in or
+probe-gated, never a blind reload (it would eat form state), and never the
+global always-visible window this replaced.
 
 ### 💡 P2 — the boost editor's code drafts go stale on external change
 The CSS/JS `@State` drafts are snapshotted in `onAppear` only; if the same boost

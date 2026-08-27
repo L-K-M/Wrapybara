@@ -11,7 +11,7 @@ import XCTest
 /// connection) was never followed by the site's own became-visible catch-up, and
 /// the page stayed frozen on old state until a manual reload. These tests pin the
 /// honest answers so that override can't quietly come back.
-final class SiteWindowTests: XCTestCase {
+final class SiteWindowVisibilityTests: XCTestCase {
 
     private func makeController() -> SiteWindowController {
         let configuration = WrapConfiguration(

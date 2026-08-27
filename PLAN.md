@@ -345,7 +345,12 @@ Not one feature — the absence of twenty small failures.
      stale state until a manual reload. Honest visibility restores the browser
      contract: the site pauses what it chooses while hidden — its unthrottled
      timers keep everything else running — and catches up on its own the moment
-     the user comes back, the way it does in Safari.
+     the user comes back, the way it does in Safari. A site with no
+     resync-on-visible logic sits stale until a reload — in the wrap and in
+     Safari alike; that shared bar is the honest contract's known cost, which
+     is why the release check runs the Safari comparison side by side. If a
+     real wrap ever needs more, the answer is a per-wrap opt-in nudge (see the
+     ANALYSIS.md idea), never a global always-visible window again.
 
   The cost of the opt-outs is battery when a wrap is hidden; that is the point.
   They ride undocumented WebKit keys set via KVC — fine under Developer ID
@@ -357,8 +362,8 @@ Not one feature — the absence of twenty small failures.
   that its connections die) and confirm the page shows current state the moment it
   is back — *without a manual reload*. While hidden, a timer-driven page must keep
   advancing (title/badge updates keep arriving). The unit tests pin the keys
-  (`SiteWebViewFactoryTests`) and the honest window answers (`SiteWindowTests`),
-  not WebKit's behaviour or App Nap. A key retired
+  (`SiteWebViewFactoryTests`) and the honest window answers
+  (`SiteWindowVisibilityTests`), not WebKit's behaviour or App Nap. A key retired
   upstream only shows up on the macOS that retired it, so run the suite on the
   oldest supported macOS and a current beta before a release — and run the check
   with a site users actually wrap, not only a timer-driven test page.
