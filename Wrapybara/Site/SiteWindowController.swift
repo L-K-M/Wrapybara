@@ -72,6 +72,10 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         // events, and the became-visible edge is how a site knows to resync when the
         // user comes back — the recovery path an always-visible lie silently removed.
         // See `SiteWebViewFactory` for where the liveness opt-outs deliberately stop.
+        // Accepted cost, the same one a browser tab pays: while covered, minimised,
+        // ⌘H-hidden or parked behind a native tab, rAF and the CSS animation
+        // timelines suspend and the page sees `visibilitychange` — its timers keep
+        // running through the factory's opt-outs, and it resyncs itself on return.
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)

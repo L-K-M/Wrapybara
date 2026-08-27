@@ -41,7 +41,8 @@ that site — and behaves like something a person wrote on purpose.
 - **Its own login.** Each app gets its own bundle identifier and its own WebKit
   session, so two wraps of the same site can be two different accounts.
 - **Stays live in the background.** A page the server drives — an agent writing a
-  reply, a chat stream, a build log — keeps running while you work in another app.
+  reply, a chat stream, a build log — keeps running while you work in another app
+  and shows current state the moment you look again.
   The app holds macOS's "user-initiated work" assertion instead of letting App Nap
   freeze its web content, and WebKit's background timer throttling is switched off.
   The page still sees the normal hidden/visible transitions a browser gives it, so

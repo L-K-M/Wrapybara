@@ -41,6 +41,9 @@ final class SiteWindowTests: XCTestCase {
     func testOrderedOutWindowReportsItselfInvisible() throws {
         let controller = makeController()
         let window = try XCTUnwrap(controller.window)
+        // Mirrors makeWindow rather than trusting it: with AppKit's default `true`,
+        // close() releases the window under these strong references mid-test.
+        window.isReleasedWhenClosed = false
         // Deferred so the skip path cleans up too — XCTSkipUnless throws.
         defer { window.close() }
         window.orderFrontRegardless()
@@ -66,6 +69,8 @@ final class SiteWindowTests: XCTestCase {
 
         let controller = makeController()
         let window = try XCTUnwrap(controller.window)
+        // Mirrors makeWindow; see the sibling test for why.
+        window.isReleasedWhenClosed = false
         defer { window.close() }
         window.orderFrontRegardless()
         XCTAssertTrue(window.isVisible,

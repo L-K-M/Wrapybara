@@ -69,8 +69,9 @@ final class SiteWebViewFactoryTests: XCTestCase {
         let key = "windowOcclusionDetectionEnabled"
         let vanilla = WKWebView(frame: .zero)
         guard SiteWebViewFactory.respondsToSetter(for: key, on: vanilla) else {
-            // WebKit retired the key: there is nothing the factory could break.
-            return
+            // A skip, not a silent pass: a retirement should be visible in the test
+            // report so the neighbouring throttling-key pins get re-audited with it.
+            throw XCTSkip("\(key) was retired by WebKit; nothing the factory could break")
         }
         // Unwrapped loudly rather than compared as optionals: `nil == nil` would
         // pass, and a WebKit that stops bridging the key to Bool is exactly the
