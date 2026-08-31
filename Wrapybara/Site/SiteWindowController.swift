@@ -67,10 +67,22 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
         if wrap.behavior.chrome.hasTransparentTitleBar { style.insert(.fullSizeContentView) }
 
-        // SiteWindow, not NSWindow: ⌘H and a background native tab both read as
-        // invisible to WebKit, which hides the page. See `SiteWindow`.
-        let window = SiteWindow(contentRect: NSRect(origin: .zero, size: size),
-                                styleMask: style, backing: .buffered, defer: false)
+        // A plain NSWindow, answering visibility honestly. WebKit turns the window's
+        // visibility and occlusion transitions into the page's `visibilitychange`
+        // events, and the became-visible edge is how a site knows to resync when the
+        // user comes back — the recovery path an always-visible lie silently removed.
+        // See `SiteWebViewFactory` for where the liveness opt-outs deliberately stop.
+        // Accepted cost, the same one a browser tab pays: while covered, minimised,
+        // ⌘H-hidden or parked behind a native tab, rAF and the CSS animation
+        // timelines suspend and the page sees `visibilitychange` — its timers keep
+        // running through the factory's opt-outs, and it resyncs itself on return.
+        // That recovery is the site's own became-visible logic — assumed, not
+        // guaranteed: a site that closes its stream on hidden and never
+        // resubscribes stays stale in Safari too. If a real wrap needs more, add a
+        // per-wrap liveness opt-in (idea filed in ANALYSIS.md) rather than
+        // restoring a global always-visible window.
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)
         if wrap.behavior.chrome.hasTransparentTitleBar {
             window.titlebarAppearsTransparent = true

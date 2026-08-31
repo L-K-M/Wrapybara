@@ -86,67 +86,46 @@ enum SiteWebViewFactory {
             }
             configuration.preferences.setValue(false, forKey: key)
         }
-    }
 
-    /// The `WKWebView` key that stops a *covered* window from marking its page hidden.
-    ///
-    /// The preferences above lift timer throttling and WebKit's own process
-    /// suppression, but neither touches the thing that actually stalls a streaming
-    /// page: whether WebKit considers the page *visible*. On macOS that is decided
-    /// by `PageClientImpl::isViewVisible`, which is false when the view has no
-    /// window, when the view is hidden, when `NSWindow.isVisible` is false, **or**
-    /// when the window's occlusion state has lost `NSWindowOcclusionStateVisible` —
-    /// which is what happens the moment another app's window covers the wrap, the
-    /// user switches Space, or the display sleeps.
-    ///
-    /// Losing visibility runs `Page::setIsVisibleInternal(false)` in the web content
-    /// process, and that does three things a chat page cannot survive:
-    /// `suspendScriptedAnimations()` stops `requestAnimationFrame`, the document
-    /// timelines suspend CSS and SVG animation (so a "working on it" spinner stops
-    /// mid-throb), and `visibilityStateChanged()` fires `visibilitychange` with
-    /// `document.hidden` true — at which point the site's own code is entitled to
-    /// tear its stream down, and typically does. The page is then stuck until it is
-    /// reloaded: the reply the server finished writing never arrives, and only a
-    /// reload fetches it. That is the "the app stopped updating" report, and the
-    /// throttling keys alone never addressed it.
-    ///
-    /// `_windowOcclusionDetectionEnabled` is WebKit's own opt-out. False drops the
-    /// occlusion term from that test, so a wrap whose window is merely covered keeps
-    /// a visible page: animations keep running, `visibilitychange` never fires, and
-    /// the stream stays up. It carries no availability annotation in
-    /// `WKWebViewPrivate.h` (it has been there since 2015), and WebKit sets it false
-    /// itself in the base system — for the same reason, that stale occlusion state
-    /// makes pages misbehave.
-    ///
-    /// What this does *not* cover on its own: a window hidden with ⌘H, and a
-    /// native tab sitting behind the selected one. Both make `NSWindow.isVisible`
-    /// false, which WebKit checks before it ever consults occlusion, and no
-    /// embedder switch reaches that check — so `SiteWindow` answers it instead,
-    /// reporting the window visible for as long as the app owns it. A miniaturised
-    /// window needs neither: it stays ordered in (`isVisible` still yes) and only
-    /// its occlusion state goes dark — this switch is what keeps its page up.
-    static let windowOcclusionDetectionKey = "windowOcclusionDetectionEnabled"
-
-    /// Keeps a covered window's page in the visible state.
-    ///
-    /// See `windowOcclusionDetectionKey` for the mechanism and for the two cases it
-    /// doesn't reach. The trade-off is the one `preventHiddenPageThrottling` already
-    /// makes, answered the same way: a covered wrap keeps animating and keeps costing
-    /// battery, because a wrap is the whole app rather than a background tab.
-    ///
-    /// Probed rather than set blind, for the reason the preference keys are: a key
-    /// WebKit has retired raises an uncatchable `NSUndefinedKeyException`, and a wrap
-    /// that freezes when covered is much better than one that crashes at launch.
-    static func keepPageVisibleWhileWindowIsCovered(_ webView: WKWebView) {
-        let key = windowOcclusionDetectionKey
-        guard respondsToSetter(for: key, on: webView) else {
-            // Same diagnostic contract as the throttling keys: a user whose macOS
-            // retired this would otherwise just see the freeze come back.
-            logger.warning("WebKit no longer knows \(key, privacy: .public); a covered window will hide its page")
-            return
+        // The keys above are WebKit's legacy (macOS 10.12-era) controls. Apps
+        // linked against the macOS 14 SDK are also subject to a second,
+        // RunningBoard-based mechanism that suspends or throttles the WebContent
+        // process of a page that isn't visible — independently of those keys.
+        // `.none` is its public opt-out (it maps to
+        // `backgroundWebContentRunningBoardThrottlingEnabled(false)` inside
+        // WebKit), so a hidden wrap's page keeps actually running — its timers,
+        // its stream, its title → Dock badge updates — rather than being frozen
+        // mid-stream and having to catch up on the became-visible edge. Public
+        // API, so none of the probe-before-KVC dance is needed.
+        if #available(macOS 14.0, *) {
+            configuration.preferences.inactiveSchedulingPolicy = .none
         }
-        webView.setValue(false, forKey: key)
     }
+
+    // Where the liveness opt-outs deliberately stop: page *visibility* is never
+    // faked.
+    //
+    // Two earlier fixes went further than the keys above and made the page believe
+    // it was permanently visible — `_windowOcclusionDetectionEnabled` false on the
+    // web view, and a window subclass whose `isVisible` answered true while the
+    // window was hidden. That pinned `document.visibilityState` to `"visible"` for
+    // the page's whole life, so `visibilitychange` never fired — and that silenced
+    // the one signal a modern web app uses to *recover*. Streams die for reasons no
+    // embedder switch controls: system sleep cuts every TCP connection (this app
+    // deliberately allows idle sleep — see `SiteAppDelegate`), networks change,
+    // proxies and servers drop idle connections. A page in a real browser heals
+    // from all of that the moment the user comes back, because the hidden → visible
+    // transition — delivered on uncovering, un-minimising, unhiding, tab switch and
+    // display wake — is what triggers its refetch-on-focus / resubscribe path. A
+    // page that was never told it was hidden is never told it is visible again
+    // either; it just sits on whatever state it had when its connection died. That
+    // was the "the wrap stops updating until a manual reload" bug.
+    //
+    // So the policy is: keep the page *running* while hidden (the preference keys
+    // above, plus the App Nap assertion in `SiteAppDelegate`), and report
+    // visibility honestly the way Safari does. The site pauses what it chooses
+    // while hidden and — crucially — resyncs itself on every return, exactly as it
+    // does in the browser its authors tested in.
 
     /// - Parameter handler: receives the page's messages — the picker's selection, the
     ///   notification shim's payloads, soft navigations.
@@ -177,9 +156,6 @@ enum SiteWebViewFactory {
         }
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-        // Before the view is ever put in a window, so the first activity state WebKit
-        // computes for it already has occlusion out of the picture.
-        keepPageVisibleWhileWindowIsCovered(webView)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
         webView.allowsLinkPreview = true
