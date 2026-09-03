@@ -314,63 +314,58 @@ Not one feature — the absence of twenty small failures.
   none to embedders — off by default, because replacing a page global is intrusive.
 - **Sessions are per app.** Each wrap has its own bundle identifier and therefore
   its own WebKit data directory. Two wraps of one site hold two different logins.
-- **A covered window keeps the page running.** macOS does three separate things to
-  a page whose window it thinks nobody is looking at, and a wrap has to opt out of
-  all three or a streaming chat freezes the moment its window is covered. All of it
-  lives in `SiteWebViewFactory`.
+- **A hidden window keeps the page running — and keeps it honest.** macOS does
+  three separate things to a page whose window it thinks nobody is looking at. A
+  wrap opts out of the two that *slow the page down*, and deliberately keeps the
+  third — the page being *told* it is hidden — truthful. The opt-outs live in
+  `SiteWebViewFactory`.
 
-  1. **DOM timers** are throttled to about once a second, and after a delay the
-     WebContent process is suspended outright. Three undocumented `WKPreferences`
-     keys turn that off.
-  2. **The page is marked hidden.** This is the one that actually stalls a modern
-     site, and the one the preference keys never touched. WebKit decides visibility
-     in `PageClientImpl::isViewVisible`, which returns false when the window's
-     occlusion state loses `NSWindowOcclusionStateVisible` — another app's window
-     covering the wrap, a Space switch, the display going to sleep. That runs
-     `Page::setIsVisibleInternal(false)` in the content process, which suspends
-     `requestAnimationFrame`, suspends the CSS and SVG animation timelines, and
-     fires `visibilitychange` with `document.hidden` true. A chat page then stops
-     painting *and* is invited to tear its own stream down — which is why the
-     symptom was "the spinner stopped and the reply never arrived, and only a
-     reload brought it back". `WKWebView`'s `_windowOcclusionDetectionEnabled`
-     (false) drops the occlusion term from that test, so a merely covered window
-     keeps a visible page.
-  3. **App Nap** on the app process, held off with a `ProcessInfo` activity — see
+  1. **DOM timers** are throttled to about once a second (growing over time) and
+     the WebContent process is process-suppressed the way App Nap suppresses an
+     idle app. Three undocumented `WKPreferences` keys — the same ones Playwright,
+     Bun and MacPin set — turn that off, so a hidden wrap's page keeps full-speed
+     timers and an unsuppressed process. Network delivery was never gated on
+     visibility (`Page::setIsVisibleInternal` touches only rendering, animations,
+     timers and the `visibilitychange` dispatch), so with these set, a site that
+     keeps streaming while hidden keeps up in real time.
+  2. **App Nap** on the app process, held off with a `ProcessInfo` activity — see
      the bullet above.
+  3. **The page is marked hidden — and that must stay true.** WebKit decides
+     visibility in `PageClientImpl::isViewVisible` (window present, view not
+     hidden, `NSWindow.isVisible`, occlusion state). Losing it suspends
+     `requestAnimationFrame` and the CSS/SVG animation timelines and fires
+     `visibilitychange` with `document.hidden` true — exactly what Safari does to
+     a background tab. That event is the page's lifeline, not its enemy: a
+     streaming connection dies silently sooner or later (system sleep, NAT and
+     proxy idle timeouts, a network change — a half-open stream raises no error,
+     and neither `EventSource` nor a fetch stream reconnects on silence), and the
+     hidden→visible `visibilitychange` on the way back is the trigger streaming
+     sites resynchronize on. An earlier design pinned pages "visible" forever —
+     `_windowOcclusionDetectionEnabled` false on the web view, plus a window
+     subclass lying in `isVisible` to cover ⌘H and background tabs — which
+     suppressed that trigger for the page's whole life: the first silently-dead
+     connection left the wrap stale until a manual reload ("stopped updating even
+     though the server kept running"). Both lies are gone. A genuinely hidden
+     page pauses its rendering, keeps its timers (point 1), and catches up the
+     moment it is visible again.
 
-  The cost is battery when a wrap is hidden; that is the point. Both opt-outs ride
-  undocumented WebKit keys set via KVC — fine under Developer ID distribution, but
-  re-review before any Mac App Store submission.
+  The cost of the opt-outs is battery while a wrap is hidden; that is the point.
+  They ride undocumented WebKit keys set via KVC — fine under Developer ID
+  distribution, but re-review before any Mac App Store submission.
 
-  **What the occlusion switch cannot reach:** a window hidden with ⌘H, and a
-  native tab sitting behind the selected one. Both make `NSWindow.isVisible` false
-  — which WebKit checks before it ever consults occlusion, and no embedder switch
-  reaches that check — while the app itself is still frontmost, so the freeze reads
-  as "stopped updating even in the foreground". The window answers for itself
-  instead: site-app windows are `SiteWindow`, which reports visible for as long as
-  the app owns it and goes back to the honest answer once its close begins (AppKit's
-  quit-on-last-close and Dock-reopen logic consult visibility too). A miniaturised
-  window needs none of this: it stays ordered in, `isVisible` keeps answering yes,
-  and its page is kept up by the occlusion switch above. Same battery trade-off
-  throughout, same reasoning.
-
-  Release check: open a streaming page in a wrap, cover the window with another app
-  for a minute, and confirm the reply is still arriving *and* still animating —
-  cover it, don't just click away, since an uncovered background window was never
-  affected. Repeat miniaturised and with two tabs, leaving the page in the
-  background tab for a few minutes: the reply must keep arriving in both, not catch
-  up on restore — and assert `document.visibilityState === "visible"` in each of
-  those states, since a page that ignores `visibilitychange` would keep streaming
-  even if the override had failed. Also leave it hidden 5+ minutes with the display
-  asleep and confirm a timer-driven page still advances on wake. Then exercise the
-  AppKit side of the
-  override: ⌘` window cycling, the Window menu, Mission Control and Space switching,
-  and VoiceOver must all stay sane
-  while the app is ⌘H-hidden and while a tab sits in the background. The unit tests
-  pin the keys, not WebKit's behaviour or App Nap. A key retired upstream only shows
-  up on the macOS that retired it, so run the suite on the oldest supported macOS and
-  a current beta before a release — and run the check with a site users actually wrap,
-  not only a timer-driven test page.
+  Release check: open a streaming page in a wrap, completely cover the window
+  with another app while a reply is being written (occlusion flips only on full
+  coverage — a partly visible window still counts as visible), then uncover it —
+  the page must catch up *without a reload*. Repeat miniaturised, with the page parked in a background
+  tab, with the app ⌘H-hidden, after a display sleep, and after a real system
+  sleep long enough to kill the connection. Assert
+  `document.visibilityState === "hidden"` while covered and `"visible"` after the
+  return: if it never reads hidden, something is lying to WebKit again and the
+  site's own resync can never run. The unit tests pin the preference keys and the
+  honest window, not WebKit's behaviour or App Nap. A key retired upstream only
+  shows up on the macOS that retired it, so run the suite on the oldest supported
+  macOS and a current beta before a release — and run the check with a site users
+  actually wrap, not only a timer-driven test page.
 
 ---
 
@@ -391,7 +386,7 @@ Wrapybara/
                             BundleIdentifierGenerator, ExtendedAttributes
   Icons/                    SiteMarkupParser, SiteIconFetcher, IconCandidate,
                             IconComposer, PlatePattern
-  Site/                     SiteAppDelegate, SiteWindowController, SiteWindow,
+  Site/                     SiteAppDelegate, SiteWindowController,
                             SiteWebController, SiteWebViewFactory, SiteMenuBuilder,
                             NavigationPolicy, URLNormalizer, DownloadCoordinator,
                             FindBarController, BadgeFromTitle, NotificationBridge,

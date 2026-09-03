@@ -2,12 +2,14 @@ import XCTest
 import WebKit
 @testable import Wrapybara
 
-/// The testable part of the web-view factory: that a wrap's web view opts out of
-/// everything macOS does to a page whose window it thinks nobody is looking at —
-/// hidden-page timer throttling, process suppression, and (the one that actually
-/// stops a streaming chat) treating a covered window as a hidden page. All of it
-/// rides undocumented WebKit keys, so these tests pin both that they're set and
-/// that the keys are still ones WebKit knows.
+/// The testable part of the web-view factory: that a wrap's web view keeps a
+/// hidden page *running* (no DOM-timer throttling, no process suppression) while
+/// leaving page *visibility* honest — a hidden page must still learn it is hidden,
+/// because the hidden→visible `visibilitychange` is how a streaming site notices a
+/// silently dead connection and resynchronizes. The opt-outs ride undocumented
+/// WebKit keys, so these tests pin both that they're set and that the keys are
+/// still ones WebKit knows — and that nothing has crept back in to lie about
+/// visibility.
 final class SiteWebViewFactoryTests: XCTestCase {
 
     /// A message-handler stub, so `makeWebView` has something to register.
@@ -58,24 +60,23 @@ final class SiteWebViewFactoryTests: XCTestCase {
         }
     }
 
-    /// The occlusion opt-out is the one that keeps a *covered* window's page in the
-    /// visible state, and so keeps `requestAnimationFrame`, CSS animation and the
-    /// page's own streaming code running rather than firing `visibilitychange` at
-    /// it. Read off a real web view, because that's where the key lives — it is a
-    /// `WKWebView` property, not a preference, so nothing in the configuration
-    /// would catch its loss.
-    func testMakeWebViewKeepsThePageVisibleWhileTheWindowIsCovered() {
+    /// Occlusion detection is deliberately left at WebKit's default (on): a page
+    /// whose window is covered or behind a sleeping display *should* be marked
+    /// hidden, because the hidden→visible transition on the way back is what fires
+    /// `visibilitychange` — the signal a streaming site uses to notice a silently
+    /// dead connection and resynchronize. An earlier revision disabled it (pinning
+    /// pages "visible" forever), which turned every dead stream into "stale until
+    /// reloaded". This pins the opt-out staying gone.
+    func testMakeWebViewLeavesWindowOcclusionDetectionEnabled() throws {
         let webView = SiteWebViewFactory.makeWebView(for: fixtureWrap(), messageHandler: StubHandler())
-        let key = SiteWebViewFactory.windowOcclusionDetectionKey
-        // Same order as `assertThrottlingDisabled`: probe before reading, because
-        // `value(forKey:)` on a retired key raises uncatchably, and halt rather than
-        // record — `XCTFail` alone would let the read through.
-        guard SiteWebViewFactory.respondsToSetter(for: key, on: webView) else {
-            XCTFail("\(key) is no longer a known WKWebView key")
-            return
-        }
-        XCTAssertFalse(webView.value(forKey: key) as? Bool ?? true,
-                       "a covered window must not put its page into the hidden state")
+        let key = "windowOcclusionDetectionEnabled"
+        // Probe before reading, because `value(forKey:)` on a retired key raises
+        // uncatchably. Production no longer touches this key, so a macOS that has
+        // retired it leaves nothing to pin — skip rather than fail.
+        try XCTSkipUnless(SiteWebViewFactory.respondsToSetter(for: key, on: webView),
+                          "\(key) is no longer a known WKWebView key; nothing to pin")
+        XCTAssertTrue(webView.value(forKey: key) as? Bool ?? false,
+                      "occlusion detection must stay on: a covered window's page has to see visibilitychange when it returns")
     }
 
     // MARK: Web Inspector

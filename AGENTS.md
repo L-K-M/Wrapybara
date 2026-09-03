@@ -134,21 +134,21 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   pages freeze mid-stream — the "app stopped updating but the server kept running"
   bug. `.userInitiatedAllowingIdleSystemSleep` only; nothing that pins the display
   or system awake.
-- **A covered window must not mark its page hidden**
-  (`SiteWebViewFactory.keepPageVisibleWhileWindowIsCovered`). The App Nap activity
-  and the three `WKPreferences` throttling keys are not enough on their own: WebKit
-  computes visibility in `PageClientImpl::isViewVisible`, and losing
-  `NSWindowOcclusionStateVisible` alone suspends `requestAnimationFrame`, suspends
-  the CSS/SVG animation timelines and fires `visibilitychange` — which is the
-  *other* half of the same bug, and the half that makes a chat page need a reload
-  rather than just catch up. Setting `WKWebView`'s
-  `_windowOcclusionDetectionEnabled` false is what removes it.
-- **A window hidden with ⌘H, or a background native tab, must not mark its page
-  hidden either** (`SiteWindow`). Both make `NSWindow.isVisible` false while the
-  app is still frontmost — no WebKit switch reaches that check (a miniaturised
-  window stays ordered in and is covered by the occlusion switch above), so
-  site-app windows override `isVisible` to report visible until their close begins,
-  then answer honestly again for AppKit's quit/reopen logic.
+- **Never lie to WebKit about visibility.** The page must see honest
+  `document.hidden` transitions: the hidden→visible `visibilitychange` is the
+  signal streaming sites (chat apps, dashboards) use to notice a silently dead
+  connection — system sleep, a NAT or proxy idle timeout, a network change; a
+  half-open stream raises no error, ever — and resynchronize. The throttling keys
+  above keep a hidden page *running* (full-speed timers, no process suppression);
+  they must not be "improved" into pinning the page visible. Two earlier revisions
+  did exactly that (`_windowOcclusionDetectionEnabled = false` on the web view,
+  and a window subclass overriding `isVisible` to answer true): the wrapped page
+  then never saw a single `visibilitychange`, so the first connection the network
+  silently killed left the app stale until a manual reload — the persistent form
+  of the "app stopped updating but the server kept running" bug. A hidden page
+  pausing `requestAnimationFrame` and its animations is correct, Safari-equivalent
+  behavior; what matters is that it *catches up the moment it is visible again*,
+  and only honest visibility delivers that moment.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
 
@@ -177,10 +177,14 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   app is running; the element picker on a single-page app; Show Web Inspector
   (⌥⌘I) — it must open in its own window with nothing flickering, because an
   *attached* inspector fights the container's Auto Layout; a wrap built by an older
-  version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
-  *and animating* while another app's window covers it, that keeps updating while
-  miniaturised and while parked on a background tab, and that catches up without
-  a reload after a display sleeps and wakes; a failed navigation with an
+  version (the rebuild prompt); a streaming page (e.g. a chat) that catches up
+  *without a reload* each time it becomes visible again — after another app's
+  window covered it, after sitting miniaturised or parked on a background tab,
+  after the display sleeps and wakes, and after a real system sleep long enough
+  to kill the connection (the acid test: `document.visibilityState` must read
+  `hidden` while the window is *fully* covered — partial coverage still counts
+  as visible — and flip back, or the site's own resync never runs);
+  a failed navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this

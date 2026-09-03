@@ -67,10 +67,15 @@ final class SiteWindowController: NSWindowController, NSMenuItemValidation {
         var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
         if wrap.behavior.chrome.hasTransparentTitleBar { style.insert(.fullSizeContentView) }
 
-        // SiteWindow, not NSWindow: ⌘H and a background native tab both read as
-        // invisible to WebKit, which hides the page. See `SiteWindow`.
-        let window = SiteWindow(contentRect: NSRect(origin: .zero, size: size),
-                                styleMask: style, backing: .buffered, defer: false)
+        // A plain NSWindow that answers `isVisible` honestly. WebKit reads it to
+        // decide whether the page is visible, and the page must see the truth:
+        // the hidden→visible `visibilitychange` on the way back is the signal a
+        // streaming site resynchronizes on after its connection died silently. A
+        // window that lies here (one did, once) suppresses that event forever and
+        // turns every dead stream into "stale until reloaded" — see
+        // `SiteWebViewFactory.hiddenPageThrottlingPreferenceKeys` for the story.
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: style, backing: .buffered, defer: false)
         window.minSize = NSSize(width: 400, height: 300)
         if wrap.behavior.chrome.hasTransparentTitleBar {
             window.titlebarAppearsTransparent = true
