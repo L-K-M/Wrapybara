@@ -1,5 +1,8 @@
 # <img src="docs/icon.png" width="48" alt="Wrapybara icon" align="top"> Wrapybara
 
+> [!IMPORTANT]
+> LLM disclosure: This codebase was written with substantial help from large language models: AI coding agents working from the [`AGENTS.md`](AGENTS.md) brief in this repo.
+
 Turn a website into a **real Mac app** — with its own icon, menu bar, tabs and login
 session — and then customise the site inside it with **Boosts**.
 
