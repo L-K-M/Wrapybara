@@ -327,21 +327,24 @@ into the same pass. (k3 K26.)
 
 ## UX, convenience, delight
 
-### 💡 P2 — a wake/network resync nudge for wraps of sites without resync-on-visible
-The honest-visibility policy (PR #33) hands recovery to the site's own
-became-visible logic, which is the browser contract — but two edges stay
-uncovered, in Safari and in a wrap alike: the single post-wake `visibilitychange`
-can race the network re-associating (the one refetch fails and no further edge
-comes while the window sits frontmost), and a transport that dies while the
-window stays visible gets no edge at all. Every shipping wrapper that closes
+### 💡 P2 — a wake/network resync nudge for streams that die silently
+A wrap pins its page "visible" (`SiteWindow`, the occlusion opt-out) so it keeps
+updating while covered, minimised or on a background tab. The cost: a page never
+sees the hidden → visible `visibilitychange` many sites resync on, so a stream
+that dies while the user is away (system sleep cuts every TCP connection, a
+network change, an idle timeout) can leave the wrap stale until a manual reload.
+PR #33 tried to fix this by reporting visibility honestly instead; that was
+merged in #34 and reverted, because it traded live updates while covered for a
+recovery path nobody had tested on the site that had the bug. Every shipping wrapper that closes
 these does it host-side: observe `NSWorkspace` `didWakeNotification` /
 `screensDidWakeNotification` and an `NWPathMonitor`, and on wake or
 path-restored (debounced, after the wrap's origin answers a cheap probe) nudge
 each live web view — synthetic `visibilitychange`/`focus`, an `offline`→`online`
 pair for reconnect listeners; Electron apps (teams-for-linux, Franz) reload
 outright after long suspensions. **Scope deliberately:** per-wrap opt-in or
-probe-gated, never a blind reload (it would eat form state), and never the
-global always-visible window this replaced.
+probe-gated, never a blind reload (it would eat form state). A host-fired event
+is untrusted (`isTrusted == false`) and cannot change `document.visibilityState`
+or `navigator.onLine`, so it only reaches sites that listen for the event itself.
 
 ### 💡 P2 — the boost editor's code drafts go stale on external change
 The CSS/JS `@State` drafts are snapshotted in `onAppear` only; if the same boost
