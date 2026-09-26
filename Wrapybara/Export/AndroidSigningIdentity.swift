@@ -65,7 +65,7 @@ struct AndroidSigningIdentity {
                 directory: directory,
                 password: try storedPassword(for: packageIdentifier, in: directory, passwords: passwords))
             try identity.validate(using: toolchain)
-            try identity.removeLegacyPassword()
+            try identity.removeLegacyPassword(ifStoredIn: passwords, for: packageIdentifier)
             return identity
         }
 
@@ -104,24 +104,30 @@ struct AndroidSigningIdentity {
         return AndroidSigningIdentity(directory: directory, password: password)
     }
 
-    /// The stored password, moving a pre-Keychain password file into the store first.
+    /// The password for the key in `directory`. A pre-Keychain password file beside
+    /// the key is that key's own password, so it wins over the store: it moves into
+    /// an empty store, and never replaces a password already stored.
     private static func storedPassword(for packageIdentifier: String, in directory: URL,
                                        passwords: AndroidSigningPasswordStore) throws -> String {
-        if let password = try passwords.read(packageIdentifier) { return password }
-
+        let stored = try passwords.read(packageIdentifier)
         let legacyFile = directory.appendingPathComponent(legacyPasswordName)
-        guard let data = try? Data(contentsOf: legacyFile),
-              let password = String(data: data, encoding: .utf8), !password.isEmpty else {
-            throw IdentityError.missingPassword(packageIdentifier)
+        if let data = try? Data(contentsOf: legacyFile),
+           let legacy = String(data: data, encoding: .utf8), !legacy.isEmpty {
+            if stored == nil { try passwords.add(legacy, packageIdentifier) }
+            return legacy
         }
-        try passwords.add(password, packageIdentifier)
-        return password
+
+        guard let stored else { throw IdentityError.missingPassword(packageIdentifier) }
+        return stored
     }
 
-    /// Once the stored password has opened the key, the old plaintext copy goes.
-    private func removeLegacyPassword() throws {
+    /// Once the key has opened, its plaintext password file goes, but only when the
+    /// store holds the same password; otherwise the file is the key's only copy.
+    private func removeLegacyPassword(ifStoredIn passwords: AndroidSigningPasswordStore,
+                                      for packageIdentifier: String) throws {
         let legacyFile = directory.appendingPathComponent(Self.legacyPasswordName)
-        guard FileManager.default.fileExists(atPath: legacyFile.path) else { return }
+        guard FileManager.default.fileExists(atPath: legacyFile.path),
+              try passwords.read(packageIdentifier) == password else { return }
         try FileManager.default.removeItem(at: legacyFile)
     }
 

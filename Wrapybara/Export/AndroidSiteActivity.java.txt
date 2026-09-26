@@ -375,7 +375,9 @@ public final class AndroidSiteActivity extends Activity {
             if (!request.isForMainFrame()) return;
 
             // getDescription() carries no non-null guarantee; this path must not crash.
-            showPageError(request.getUrl().toString(), String.valueOf(error.getDescription()));
+            CharSequence description = error.getDescription();
+            showPageError(request.getUrl().toString(),
+                    description != null ? description.toString() : "The page could not be loaded.");
         }
 
         @Override

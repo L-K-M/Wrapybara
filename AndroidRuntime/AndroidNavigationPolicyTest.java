@@ -9,7 +9,7 @@ public final class AndroidNavigationPolicyTest {
     public static void main(String[] arguments) {
         AndroidNavigationPolicy browser = new AndroidNavigationPolicy(
                 // Escaped so javac's platform default encoding can't mangle it.
-                "https://mail.example.com", Arrays.asList("trusted.test", "bücher.example"),
+                "https://mail.example.com", Arrays.asList("trusted.test", "b\u00fccher.example"),
                 AndroidNavigationPolicy.ExternalLinks.OPEN_IN_BROWSER);
         AndroidNavigationPolicy inApp = new AndroidNavigationPolicy(
                 "https://mail.example.com", Arrays.asList(),

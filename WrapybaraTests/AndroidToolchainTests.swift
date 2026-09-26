@@ -191,6 +191,30 @@ final class AndroidToolchainTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: key), "existing key")
     }
 
+    func testALegacyPasswordFileWinsOverADifferentStoredPassword() throws {
+        // A failed first export can leave a stored password behind; a pre-Keychain
+        // folder restored afterwards must still open with its own password file.
+        let identityDirectory = signingDirectory.appendingPathComponent(packageIdentifier)
+        let key = identityDirectory.appendingPathComponent("signing.p12")
+        let legacyPassword = identityDirectory.appendingPathComponent("password")
+        try write("restored key", to: key)
+        try write("legacy password", to: legacyPassword)
+        try executable("""
+        [ "$WRAPYBARA_ANDROID_KEYSTORE_PASSWORD" = "legacy password" ] && [ "$1" = "-list" ]
+        """, at: javaHome.appendingPathComponent("bin/keytool"))
+        let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
+        try passwords.add("left by a failed export", packageIdentifier)
+
+        _ = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
+                                                    packageIdentifier: packageIdentifier,
+                                                    toolchain: toolchain, passwords: passwords)
+        XCTAssertEqual(try passwords.read(packageIdentifier), "left by a failed export")
+        // Never replaced in the store, so the file stays: it's the key's only copy.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacyPassword.path))
+        XCTAssertEqual(try String(contentsOf: key), "restored key")
+    }
+
     func testFailedGenerationDoesNotPublishAnIncompleteIdentity() throws {
         try executable("exit 1", at: javaHome.appendingPathComponent("bin/keytool"))
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
@@ -210,6 +234,7 @@ final class AndroidToolchainTests: XCTestCase {
                                                                          toolchain: toolchain,
                                                                          passwords: passwords))
             XCTAssertNil(try passwords.read(identifier))
+            XCTAssertNil(try passwords.read("escape"))
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("escape").path))
     }

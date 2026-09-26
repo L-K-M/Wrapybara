@@ -87,6 +87,14 @@ enum AndroidBuildSmoke {
         try require(!FileManager.default.fileExists(atPath: legacyPassword.path),
                     "The legacy password file was kept")
 
+        // A legacy file still opens its key when the store holds another password,
+        // and stays, because the store never replaces a password it holds.
+        try Data(password.utf8).write(to: legacyPassword)
+        _ = try AndroidSigningIdentity.loadOrCreate(in: signing, packageIdentifier: package,
+                                                    toolchain: tools, passwords: wrongPasswords)
+        try require(FileManager.default.fileExists(atPath: legacyPassword.path),
+                    "A conflicting legacy password file was deleted")
+
         let remainingKey = try Data(contentsOf: key)
         try require(remainingKey == originalKey, "Identity checks changed the existing keystore")
         print("APK build, contents, signature, update identity, password storage "
