@@ -108,7 +108,7 @@ final class AndroidBoostScriptTests: XCTestCase {
     }
 
     func testStylesheetCannotBecomeExecutableCode() throws {
-        let css = "body::after {content: '\"}; window.pwned=true; //'}\n</script>\u{2028}"
+        let css = "body::after {content: '\"}; window.pwned=true; //'}\n</script>\u{2028}/* end */"
         let js = try context()
         evaluate(try AndroidBoostScript.make(boosts: [Boost(css: css)]), in: js)
         XCTAssertTrue(js.evaluateScript("typeof pwned === 'undefined'")?.toBool() == true)
