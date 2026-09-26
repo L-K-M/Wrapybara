@@ -25,6 +25,8 @@ enum AndroidBuildSmoke {
         let package = "com.wrapybara.smoke"
         let identityDirectory = signing.appendingPathComponent(package)
         let key = identityDirectory.appendingPathComponent("signing.p12")
+        let legacyPassword = identityDirectory.appendingPathComponent("password")
+        let passwords = AndroidSigningPasswordStore.inMemory()
         var certificate: String?
         var originalKey: Data?
 
@@ -32,7 +34,10 @@ enum AndroidBuildSmoke {
             let project = directory.appendingPathComponent("version \(version)")
             try writeFixture(to: project, repository: repository, package: package, version: version)
             let apk = try AndroidAPKBuilder.build(projectDirectory: project, toolchain: tools,
-                                                  signingDirectory: signing, packageIdentifier: package)
+                                                  signingDirectory: signing, packageIdentifier: package,
+                                                  passwords: passwords)
+            try require(!FileManager.default.fileExists(atPath: legacyPassword.path),
+                        "Signing password was written to disk")
             let verification = try tools.run(.java, arguments: [
                 "-jar", tools.apkSignerJar.path, "verify", "--print-certs", apk.path
             ]).standardOutput
@@ -53,16 +58,39 @@ enum AndroidBuildSmoke {
             }
         }
 
-        // A damaged identity must fail instead of replacing the key behind installed apps.
-        try FileManager.default.removeItem(at: identityDirectory.appendingPathComponent("password"))
+        // A key whose password is gone must fail instead of being replaced behind installed apps.
         do {
             _ = try AndroidSigningIdentity.loadOrCreate(in: signing, packageIdentifier: package,
-                                                        toolchain: tools)
+                                                        toolchain: tools, passwords: .inMemory())
             throw Failure.check("Missing password silently regenerated an identity")
+        } catch AndroidSigningIdentity.IdentityError.missingPassword { }
+
+        // So must a password that no longer opens the key.
+        let wrongPasswords = AndroidSigningPasswordStore.inMemory()
+        try wrongPasswords.add("not the password", package)
+        do {
+            _ = try AndroidSigningIdentity.loadOrCreate(in: signing, packageIdentifier: package,
+                                                        toolchain: tools, passwords: wrongPasswords)
+            throw Failure.check("A wrong password was accepted")
         } catch AndroidSigningIdentity.IdentityError.damagedIdentity { }
+
+        // A pre-Keychain identity keeps working: its password file moves into the store.
+        guard let password = try passwords.read(package) else {
+            throw Failure.check("The signing password was not stored")
+        }
+        try Data(password.utf8).write(to: legacyPassword)
+        let migrated = AndroidSigningPasswordStore.inMemory()
+        _ = try AndroidSigningIdentity.loadOrCreate(in: signing, packageIdentifier: package,
+                                                    toolchain: tools, passwords: migrated)
+        let migratedPassword = try migrated.read(package)
+        try require(migratedPassword == password, "The legacy password was not migrated")
+        try require(!FileManager.default.fileExists(atPath: legacyPassword.path),
+                    "The legacy password file was kept")
+
         let remainingKey = try Data(contentsOf: key)
-        try require(remainingKey == originalKey, "Damaged identity changed existing keystore")
-        print("APK build, contents, signature, update identity, and damaged-key checks passed")
+        try require(remainingKey == originalKey, "Identity checks changed the existing keystore")
+        print("APK build, contents, signature, update identity, password storage "
+              + "and damaged-key checks passed")
     }
 
     private static func writeFixture(to directory: URL, repository: URL,

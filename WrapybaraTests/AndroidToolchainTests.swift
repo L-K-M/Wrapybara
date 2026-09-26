@@ -66,29 +66,32 @@ final class AndroidToolchainTests: XCTestCase {
         let key = signingDirectory.appendingPathComponent(packageIdentifier + "/signing.p12")
         try write("existing key", to: key)
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
 
         XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                                      packageIdentifier: packageIdentifier,
-                                                                     toolchain: toolchain)) {
-            guard case AndroidSigningIdentity.IdentityError.damagedIdentity = $0 else {
+                                                                     toolchain: toolchain,
+                                                                     passwords: passwords)) {
+            guard case AndroidSigningIdentity.IdentityError.missingPassword = $0 else {
                 return XCTFail("Unexpected error: \($0)")
             }
         }
         XCTAssertEqual(try String(contentsOf: key), "existing key")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: key.deletingLastPathComponent()
-            .appendingPathComponent("password").path))
+        XCTAssertNil(try passwords.read(packageIdentifier))
     }
 
     func testCorruptKeyIsPreservedAndReported() throws {
         let key = signingDirectory.appendingPathComponent(packageIdentifier + "/signing.p12")
         try write("corrupt key", to: key)
-        try write("password", to: key.deletingLastPathComponent().appendingPathComponent("password"))
         try executable("exit 1", at: javaHome.appendingPathComponent("bin/keytool"))
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
+        try passwords.add("password", packageIdentifier)
 
         XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                                      packageIdentifier: packageIdentifier,
-                                                                     toolchain: toolchain)) {
+                                                                     toolchain: toolchain,
+                                                                     passwords: passwords)) {
             guard case AndroidSigningIdentity.IdentityError.damagedIdentity = $0 else {
                 return XCTFail("Unexpected error: \($0)")
             }
@@ -97,8 +100,10 @@ final class AndroidToolchainTests: XCTestCase {
     }
 
     func testCreatesPrivateIdentityOnceAndReusesIt() throws {
-        // The fake keytool exercises persistence; real signing is covered by the SDK smoke build.
+        // The fake keytool exercises persistence and insists on getting the password from
+        // the environment; real signing is covered by the SDK smoke build.
         try executable("""
+        [ -n "$WRAPYBARA_ANDROID_KEYSTORE_PASSWORD" ] || exit 2
         case "$1" in
           -genkeypair)
             while [ "$#" -gt 0 ]; do
@@ -115,24 +120,75 @@ final class AndroidToolchainTests: XCTestCase {
         esac
         """, at: javaHome.appendingPathComponent("bin/keytool"))
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
         _ = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                     packageIdentifier: packageIdentifier,
-                                                    toolchain: toolchain)
+                                                    toolchain: toolchain, passwords: passwords)
         let identityDirectory = signingDirectory.appendingPathComponent(packageIdentifier)
         let key = identityDirectory.appendingPathComponent("signing.p12")
-        let password = identityDirectory.appendingPathComponent("password")
-        let originalPassword = try Data(contentsOf: password)
+        let password = try XCTUnwrap(passwords.read(packageIdentifier))
+        XCTAssertFalse(password.isEmpty)
+        // The key is all the folder holds; its password never touches the disk.
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: identityDirectory.path),
+                       ["signing.p12"])
         XCTAssertEqual(try permissions(identityDirectory), 0o700)
         XCTAssertEqual(try permissions(key), 0o600)
-        XCTAssertEqual(try permissions(password), 0o600)
 
         // Only validation may run on a rebuild. Generating a second key would fail this tool.
-        try executable("[ \"$1\" = \"-list\" ]", at: javaHome.appendingPathComponent("bin/keytool"))
+        try executable("""
+        [ -n "$WRAPYBARA_ANDROID_KEYSTORE_PASSWORD" ] && [ "$1" = "-list" ]
+        """, at: javaHome.appendingPathComponent("bin/keytool"))
+        let reloaded = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
+                                                               packageIdentifier: packageIdentifier,
+                                                               toolchain: toolchain, passwords: passwords)
+        XCTAssertEqual(try String(contentsOf: key), "test key")
+        XCTAssertEqual(Array(reloaded.environment.values), [password])
+        XCTAssertFalse(reloaded.signingArguments.contains(password))
+    }
+
+    func testANewKeyReusesThePackagesStoredPassword() throws {
+        // A stored password is never replaced: a key restored from backup still needs it.
+        try executable("""
+        [ "$WRAPYBARA_ANDROID_KEYSTORE_PASSWORD" = "kept" ] || exit 2
+        case "$1" in
+          -genkeypair)
+            while [ "$#" -gt 0 ]; do
+              if [ "$1" = "-keystore" ]; then shift; printf 'new key' > "$1"; exit 0; fi
+              shift
+            done
+            exit 1 ;;
+          -list) exit 0 ;;
+          *) exit 1 ;;
+        esac
+        """, at: javaHome.appendingPathComponent("bin/keytool"))
+        let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
+        try passwords.add("kept", packageIdentifier)
+
         _ = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                     packageIdentifier: packageIdentifier,
-                                                    toolchain: toolchain)
-        XCTAssertEqual(try String(contentsOf: key), "test key")
-        XCTAssertEqual(try Data(contentsOf: password), originalPassword)
+                                                    toolchain: toolchain, passwords: passwords)
+        XCTAssertEqual(try passwords.read(packageIdentifier), "kept")
+    }
+
+    func testMovesALegacyPasswordFileIntoTheStore() throws {
+        let identityDirectory = signingDirectory.appendingPathComponent(packageIdentifier)
+        let key = identityDirectory.appendingPathComponent("signing.p12")
+        let legacyPassword = identityDirectory.appendingPathComponent("password")
+        try write("existing key", to: key)
+        try write("legacy password", to: legacyPassword)
+        try executable("""
+        [ "$WRAPYBARA_ANDROID_KEYSTORE_PASSWORD" = "legacy password" ] && [ "$1" = "-list" ]
+        """, at: javaHome.appendingPathComponent("bin/keytool"))
+        let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
+        let passwords = AndroidSigningPasswordStore.inMemory()
+
+        _ = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
+                                                    packageIdentifier: packageIdentifier,
+                                                    toolchain: toolchain, passwords: passwords)
+        XCTAssertEqual(try passwords.read(packageIdentifier), "legacy password")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: legacyPassword.path))
+        XCTAssertEqual(try String(contentsOf: key), "existing key")
     }
 
     func testFailedGenerationDoesNotPublishAnIncompleteIdentity() throws {
@@ -140,15 +196,21 @@ final class AndroidToolchainTests: XCTestCase {
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
         XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                                      packageIdentifier: packageIdentifier,
-                                                                     toolchain: toolchain))
+                                                                     toolchain: toolchain,
+                                                                     passwords: .inMemory()))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: signingDirectory.path), [])
     }
 
     func testPackageIdentifierCannotEscapeSigningDirectory() throws {
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
-        XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
-                                                                     packageIdentifier: "../escape",
-                                                                     toolchain: toolchain))
+        let passwords = AndroidSigningPasswordStore.inMemory()
+        for identifier in ["../escape", "../../escape", "com.wrapybara.test/../../escape"] {
+            XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
+                                                                         packageIdentifier: identifier,
+                                                                         toolchain: toolchain,
+                                                                         passwords: passwords))
+            XCTAssertNil(try passwords.read(identifier))
+        }
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("escape").path))
     }
 

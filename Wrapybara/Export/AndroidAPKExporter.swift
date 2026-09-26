@@ -54,7 +54,8 @@ enum AndroidAPKExporter {
     }
 
     static func build(configuration: WrapConfiguration, iconPNG: Data, destination: URL,
-                      sdkDirectory: URL, javaHome: URL?, signingDirectory: URL) throws -> URL {
+                      sdkDirectory: URL, javaHome: URL?, signingDirectory: URL,
+                      passwords: AndroidSigningPasswordStore) throws -> URL {
         // Serialize key creation and version reservations across library windows.
         buildLock.lock()
         defer { buildLock.unlock() }
@@ -96,7 +97,8 @@ enum AndroidAPKExporter {
                         to: recordURL)
         let apk = try AndroidAPKBuilder.build(projectDirectory: staging, toolchain: toolchain,
                                                signingDirectory: signingDirectory,
-                                               packageIdentifier: package)
+                                               packageIdentifier: package,
+                                               passwords: passwords)
 
         // Protect the verified key before publishing; a failed copy may safely skip a number.
         try writeRecord(ExportRecord(versionCode: plan.versionCode, state: .published), to: recordURL)

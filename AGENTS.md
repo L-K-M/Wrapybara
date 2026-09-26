@@ -26,7 +26,8 @@ The Mac builder also exports standalone Android APKs with a separate Java runtim
 - **Persistence:** JSON under `~/Library/Application Support/Wrapybara/`
   (`library.json`, `Runtime/<uuid>.json`, `Icons/<uuid>.png` plus the
   un-composited `Icons/<uuid>-artwork.png` the plate restyler recomposes from);
-  `AndroidSigning/<package>/` retains APK keys/passwords and
+  `AndroidSigning/<package>/` retains APK keys (their passwords live in the login
+  Keychain) and
   `AndroidExports/<package>.json` retains update versions; app-level settings in
   `UserDefaults`.
 - **Dependencies:** none. Keep it that way.
@@ -164,6 +165,10 @@ Java tests, run by `Tools/test-android-runtime.sh`.
   replaces the inode; a vnode source on the file goes deaf after one save.
 - **Preserve Android identity.** Package IDs derive from wrap UUIDs. Never replace
   an existing signing key or reset its version record to recover an export failure.
+  A key's password lives in the login Keychain (`AndroidSigningPasswordStore`), is
+  never replaced once stored, and reaches `keytool`/`apksigner` only through the
+  environment: never a file, never an argument. Tests and the build smoke use
+  `AndroidSigningPasswordStore.inMemory()`, never the real Keychain.
   APKs must be aligned, signed and verified before publication. Keep subprocesses
   behind `AndroidToolchain`, compilation off the main actor, and Mac installation
   state unchanged by APK exports.

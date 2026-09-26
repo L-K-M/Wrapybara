@@ -13,6 +13,7 @@ if [[ -n "${SWIFT_SDK:-}" ]]; then compiler_options+=(-sdk "$SWIFT_SDK"); fi
 swiftc "${compiler_options[@]}" \
     "$repo_root/Wrapybara/Common/ProcessRunner.swift" \
     "$repo_root/Wrapybara/Export/AndroidToolchain.swift" \
+    "$repo_root/Wrapybara/Export/AndroidSigningPasswordStore.swift" \
     "$repo_root/Wrapybara/Export/AndroidSigningIdentity.swift" \
     "$repo_root/Wrapybara/Export/AndroidAPKBuilder.swift" \
     "$repo_root/Tools/AndroidBuildSmoke.swift" \

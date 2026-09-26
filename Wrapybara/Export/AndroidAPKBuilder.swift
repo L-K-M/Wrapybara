@@ -20,7 +20,8 @@ enum AndroidAPKBuilder {
     }
 
     static func build(projectDirectory: URL, toolchain: AndroidToolchain,
-                      signingDirectory: URL, packageIdentifier: String) throws -> URL {
+                      signingDirectory: URL, packageIdentifier: String,
+                      passwords: AndroidSigningPasswordStore) throws -> URL {
         let manager = FileManager.default
         let buildDirectory = projectDirectory.appendingPathComponent("build", isDirectory: true)
         let classesDirectory = buildDirectory.appendingPathComponent("classes", isDirectory: true)
@@ -34,6 +35,9 @@ enum AndroidAPKBuilder {
         let alignedAPK = buildDirectory.appendingPathComponent("aligned.apk")
         let signedAPK = projectDirectory.appendingPathComponent("signed.apk")
 
+        let sources = try files(in: projectDirectory.appendingPathComponent("src"), extension: "java")
+        guard !sources.isEmpty else { throw BuildError.noSources }
+
         try toolchain.run(.aapt2, arguments: [
             "compile", "--dir", projectDirectory.appendingPathComponent("res").path,
             "-o", resources.path
@@ -44,8 +48,6 @@ enum AndroidAPKBuilder {
             "-A", projectDirectory.appendingPathComponent("assets").path, resources.path
         ])
 
-        let sources = try files(in: projectDirectory.appendingPathComponent("src"), extension: "java")
-        guard !sources.isEmpty else { throw BuildError.noSources }
         // The SDK supplies lambda compiler stubs absent from android.jar; D8 desugars them.
         try toolchain.run(.javac, arguments: [
             "-encoding", "UTF-8", "-source", javaLanguageVersion, "-target", javaLanguageVersion,
@@ -73,10 +75,12 @@ enum AndroidAPKBuilder {
 
         let identity = try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                               packageIdentifier: packageIdentifier,
-                                                              toolchain: toolchain)
+                                                              toolchain: toolchain,
+                                                              passwords: passwords)
         try toolchain.run(.java, arguments: [
             "-jar", toolchain.apkSignerJar.path, "sign"
-        ] + identity.signingArguments + ["--out", signedAPK.path, alignedAPK.path])
+        ] + identity.signingArguments + ["--out", signedAPK.path, alignedAPK.path],
+            environment: identity.environment)
         try toolchain.run(.java, arguments: [
             "-jar", toolchain.apkSignerJar.path, "verify", "--verbose", signedAPK.path
         ])

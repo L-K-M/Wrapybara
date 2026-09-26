@@ -18,7 +18,8 @@ final class AndroidAPKExporterTests: XCTestCase {
             configuration: .resolved(wrap, boosts: [], generatedBy: "test"),
             iconPNG: Data([1]), destination: directory.appendingPathComponent("out.apk"),
             sdkDirectory: directory.appendingPathComponent("missing-sdk"), javaHome: nil,
-            signingDirectory: directory.appendingPathComponent("AndroidSigning"))) { error in
+            signingDirectory: directory.appendingPathComponent("AndroidSigning"),
+            passwords: .inMemory())) { error in
                 guard case AndroidAPKExporter.ExportError.missingSigningKey = error else {
                     return XCTFail("Unexpected error: \(error)")
                 }
@@ -42,7 +43,8 @@ final class AndroidAPKExporterTests: XCTestCase {
                 configuration: .resolved(wrap, boosts: [], generatedBy: "test"),
                 iconPNG: Data([1]), destination: directory.appendingPathComponent("out.apk"),
                 sdkDirectory: directory.appendingPathComponent("missing-sdk"), javaHome: nil,
-                signingDirectory: directory.appendingPathComponent("AndroidSigning"))) { error in
+                signingDirectory: directory.appendingPathComponent("AndroidSigning"),
+                passwords: .inMemory())) { error in
                     guard case AndroidAPKExporter.ExportError.invalidRecord = error else {
                         return XCTFail("Unexpected error: \(error)")
                     }
@@ -65,7 +67,8 @@ final class AndroidAPKExporterTests: XCTestCase {
             configuration: .resolved(wrap, boosts: [], generatedBy: "test"),
             iconPNG: Data([1]), destination: directory.appendingPathComponent("out.apk"),
             sdkDirectory: directory.appendingPathComponent("missing-sdk"),
-            javaHome: directory.appendingPathComponent("missing-jdk"), signingDirectory: signing)) { error in
+            javaHome: directory.appendingPathComponent("missing-jdk"), signingDirectory: signing,
+            passwords: .inMemory())) { error in
                 guard case AndroidAPKExporter.ExportError.invalidRecord = error else {
                     return XCTFail("Unexpected error: \(error)")
                 }
@@ -89,7 +92,8 @@ final class AndroidAPKExporterTests: XCTestCase {
             iconPNG: Data([1]), destination: directory.appendingPathComponent("out.apk"),
             sdkDirectory: directory.appendingPathComponent("missing-sdk"),
             javaHome: directory.appendingPathComponent("missing-jdk"),
-            signingDirectory: directory.appendingPathComponent("AndroidSigning"))) { error in
+            signingDirectory: directory.appendingPathComponent("AndroidSigning"),
+            passwords: .inMemory())) { error in
                 // A first build that never reached key generation can reach tool discovery again.
                 guard case AndroidToolchain.ToolchainError.missingFile = error else {
                     return XCTFail("Unexpected error: \(error)")
@@ -124,7 +128,8 @@ final class AndroidAPKExporterTests: XCTestCase {
             XCTAssertThrowsError(try AndroidAPKExporter.build(
                 configuration: .resolved(wrap, boosts: [], generatedBy: "test"),
                 iconPNG: Data([1]), destination: directory.appendingPathComponent("out.apk"),
-                sdkDirectory: sdk, javaHome: javaHome, signingDirectory: signing)) { error in
+                sdkDirectory: sdk, javaHome: javaHome, signingDirectory: signing,
+                passwords: .inMemory())) { error in
                     guard case AndroidToolchain.ToolchainError.failed(let tool, _) = error else {
                         return XCTFail("Unexpected error: \(error)")
                     }

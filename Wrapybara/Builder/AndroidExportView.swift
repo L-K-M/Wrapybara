@@ -57,8 +57,9 @@ struct AndroidExportView: View {
                 .font(.callout)
 
                 Section("Keep your signing key") {
-                    Text("Back up Wrapybara's support folder. Losing its Android signing key "
-                         + "prevents updates to installed APKs.")
+                    Text("Back up Wrapybara's support folder and keep your login Keychain, "
+                         + "which holds each signing key's password. Losing either prevents "
+                         + "updates to installed APKs.")
                         .font(.callout)
                     Button("Show Backup Folder") { model.revealAndroidBackupFolder() }
                 }

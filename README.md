@@ -128,9 +128,11 @@ you to allow installation from the app opening the APK. Wrapybara downloads no
 build tools and needs neither Android Studio nor Gradle.
 
 Keep the same wrap when exporting updates. Back up
-`~/Library/Application Support/Wrapybara/`, including **AndroidSigning** (keys and
-passwords) and **AndroidExports** (update versions). Losing a signing key prevents
-updates to its installed apps. Renaming a wrap preserves its Android identity.
+`~/Library/Application Support/Wrapybara/`, including **AndroidSigning** (keys) and
+**AndroidExports** (update versions). Each key's password is kept in your login
+Keychain, not in that folder, so keep your Keychain too; Time Machine and Migration
+Assistant carry both. Losing a signing key or its password prevents updates to its
+installed apps. Renaming a wrap preserves its Android identity.
 
 Android has a smaller feature set:
 

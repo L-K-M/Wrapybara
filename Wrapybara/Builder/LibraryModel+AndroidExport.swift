@@ -41,7 +41,8 @@ extension LibraryModel {
                                                  destination: destination,
                                                  sdkDirectory: sdkDirectory,
                                                  javaHome: javaHome,
-                                                 signingDirectory: signingDirectory)
+                                                 signingDirectory: signingDirectory,
+                                                 passwords: .keychain)
                 }.value
                 self.sheet = nil
                 NSWorkspace.shared.activateFileViewerSelecting([output])
@@ -57,14 +58,15 @@ extension LibraryModel {
             try AppSupport.createDirectory(AppSupport.directory)
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: AppSupport.directory.path)
         } catch {
-            showAndroidExportError(error)
+            showAndroidExportError(error, title: "Couldn't show the backup folder")
         }
     }
 
     @MainActor
-    private func showAndroidExportError(_ error: Error) {
+    private func showAndroidExportError(_ error: Error,
+                                        title: String = "Couldn't export the Android app") {
         let alert = NSAlert()
-        alert.messageText = "Couldn't export the Android app"
+        alert.messageText = title
         alert.informativeText = Self.describe(error)
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")

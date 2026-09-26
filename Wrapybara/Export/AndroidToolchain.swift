@@ -85,8 +85,10 @@ struct AndroidToolchain {
     }
 
     @discardableResult
-    func run(_ tool: Tool, arguments: [String]) throws -> ProcessRunner.Result {
-        let result = try ProcessRunner.run(executable(tool).path, arguments: arguments)
+    func run(_ tool: Tool, arguments: [String],
+             environment: [String: String] = [:]) throws -> ProcessRunner.Result {
+        let result = try ProcessRunner.run(executable(tool).path, arguments: arguments,
+                                           environment: environment)
         guard result.succeeded else { throw ToolchainError.failed(tool.rawValue, result.message) }
         return result
     }

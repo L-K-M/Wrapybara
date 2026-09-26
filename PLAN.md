@@ -211,9 +211,14 @@ aligns the APK, signs it and verifies the signature before publication.
 `AndroidToolchain` requires SDK Platform 35, Build-Tools 35.0.0 and JDK 17+.
 
 Package identity derives from the immutable wrap UUID, independently of the Mac
-bundle identifier. `AndroidSigning/<package>/` retains the local PKCS#12 key and
-password; `AndroidExports/<package>.json` retains increasing version codes. Back up
-both with the library. Existing records with missing keys fail instead of creating
+bundle identifier. `AndroidSigning/<package>/` retains the local PKCS#12 key. Its
+password lives apart from it in the login Keychain (service
+`com.wrapybara.android-signing`, one item per package, never replaced), and
+`keytool` and `apksigner` read it from an environment variable rather than a file
+or an argument, so a synced or unencrypted copy of the folder can't sign an update.
+`AndroidExports/<package>.json` retains increasing version codes. Back up the folder
+with the library and keep the Keychain; Time Machine and Migration Assistant carry
+both. Existing records with missing keys fail instead of creating
 an incompatible update. APK export never changes the installed Mac app's state.
 
 Java sources live in `Export/*.java.txt`, copied into the builder as resources and
@@ -442,6 +447,7 @@ Wrapybara/
                             BundleIdentifierGenerator, ExtendedAttributes,
                             AndroidAPKExporter, AndroidAPKBuilder, AndroidExportPlan,
                             AndroidToolchain, AndroidSigningIdentity,
+                            AndroidSigningPasswordStore,
                             Android Java runtime sources (*.java.txt)
   Icons/                    SiteMarkupParser, SiteIconFetcher, IconCandidate,
                             IconComposer, PlatePattern
