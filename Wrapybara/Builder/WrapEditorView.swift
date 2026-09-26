@@ -91,6 +91,11 @@ struct WrapEditorView: View {
                 }
                 .disabled(model.isBuilding)
 
+                Button("Export Android APK…") {
+                    model.sheet = .androidExport(wrap.id)
+                }
+                .disabled(model.isBuilding)
+
                 if let url = wrap.installedAppURL {
                     Button("Show in Finder") {
                         NSWorkspace.shared.activateFileViewerSelecting([url])

@@ -35,6 +35,11 @@ enum AppSupport {
         directory.appendingPathComponent("Runtime", isDirectory: true)
     }
 
+    /// Private APK signing identities. Losing a key prevents updates to its apps.
+    static var androidSigningDirectory: URL {
+        directory.appendingPathComponent("AndroidSigning", isDirectory: true)
+    }
+
     static func runtimeConfigurationURL(forWrapID id: UUID) -> URL {
         runtimeDirectory.appendingPathComponent("\(id.uuidString).json", isDirectory: false)
     }

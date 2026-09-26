@@ -9,13 +9,16 @@ login session, menu bar, native tabs, find bar, downloads, Handoff and Dock badg
 and lets you customise the site inside it with **Boosts** (colours, type, hidden
 elements, your own CSS and JavaScript). See `PLAN.md` for the full design and the
 engine evaluation; `README.md` for the user view.
+The Mac builder also exports standalone Android APKs with a separate Java runtime.
 
 ## Tech Stack
 
-- **Language:** Swift (Swift 5 language mode — `SWIFT_VERSION = 5.0`).
+- **Language:** Swift (Swift 5 language mode — `SWIFT_VERSION = 5.0`); Java for the
+  Android runtime.
 - **UI:** SwiftUI for the library, editors and Settings; AppKit for windowing
   (`NSWindow`, `NSToolbar`, native tabs), menus and every alert.
-- **Web:** `WKWebView` only. See `PLAN.md §2` for why not Chromium, Gecko or Servo.
+- **Web:** `WKWebView` only on macOS; system `android.webkit.WebView` on Android.
+  See `PLAN.md §2` for the Mac engine choice.
 - **System APIs:** `WKUserScript` / `WKScriptMessageHandler` (boost injection),
   `WKDownload`, `UNUserNotificationCenter`, `NSUserActivity` (Handoff),
   `DispatchSource` vnode watching, `PropertyListSerialization`, `/usr/bin/codesign`
@@ -23,12 +26,16 @@ engine evaluation; `README.md` for the user view.
 - **Persistence:** JSON under `~/Library/Application Support/Wrapybara/`
   (`library.json`, `Runtime/<uuid>.json`, `Icons/<uuid>.png` plus the
   un-composited `Icons/<uuid>-artwork.png` the plate restyler recomposes from);
-  app-level settings in `UserDefaults`.
+  `AndroidSigning/<package>/` retains APK keys/passwords and
+  `AndroidExports/<package>.json` retains update versions; app-level settings in
+  `UserDefaults`.
 - **Dependencies:** none. Keep it that way.
 - **Min target:** macOS 13 (Ventura). **Built with Xcode 16+**
   (file-system-synchronized groups, `NavigationSplitView`, `LabeledContent`).
-- **App type:** a regular app with a Dock icon — *not* an `LSUIElement` agent. So are
-  the apps it generates; that's the point.
+- **Android export:** Android 8+ (API 26), target API 35; local SDK Platform 35,
+  Build-Tools 35.0.0 and JDK 17+. No Gradle or third-party runtime libraries.
+- **Mac app type:** a regular app with a Dock icon, not an `LSUIElement` agent. So
+  are its generated Mac apps.
 
 ## Build & Run
 
@@ -54,14 +61,14 @@ loudly otherwise — re-export rather than widening the decoder.
 
 ## The one structural thing to understand first
 
-**There is one binary with two lives.** `Wrapybara.app/Contents/MacOS/Wrapybara` is
-copied byte for byte into every app it builds. `LaunchMode.detect()` reads the
+**The Mac binary has two lives.** `Wrapybara.app/Contents/MacOS/Wrapybara` is
+copied byte for byte into every Mac app it builds. `LaunchMode.detect()` reads the
 running bundle's `Info.plist`: a `WBWrapIdentifier` key means "site app", its absence
 means "builder".
 
 Consequences that will bite you if you forget them:
 
-- **A generated app has no asset catalog.** It gets only the executable, a
+- **A generated Mac app has no asset catalog.** It gets only the executable, a
   hand-written `Info.plist`, an `.icns` and `wrap.json`. Anything in `Site/` that
   reached for `NSImage(named:)` would get `nil`. Use SF Symbols
   (`NSImage(systemSymbolName:)`) or draw in code.
@@ -71,13 +78,18 @@ Consequences that will bite you if you forget them:
 - **`AppSupport.folderName` is the literal `"Wrapybara"`**, never anything derived
   from `Bundle.main`. Generated apps run this code from a bundle called something
   else and must arrive at the same directory.
-- **Anything you add to `Site/` ships inside every wrap.** Anything you add to
+- **Anything you add to `Site/` ships inside every Mac wrap.** Anything you add to
   `Builder/` is dead weight there. Keep the split.
 
 ## Module Layout
 
 Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Export/`,
 `Icons/`, `Site/`, `Builder/`, `Updates/`, `Common/`.
+
+Android export lives in `Export/`; its Java runtime sources are `*.java.txt`
+resources bundled with the builder and compiled at export time. Keep their class
+names aligned with `AndroidAPKExporter.runtimeSources`. `AndroidRuntime/` holds
+Java tests, run by `Tools/test-android-runtime.sh`.
 
 ## Conventions
 
@@ -150,6 +162,15 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   throttling and process suppression.
 - **Watch the directory, not the file.** Configurations are written atomically, which
   replaces the inode; a vnode source on the file goes deaf after one save.
+- **Preserve Android identity.** Package IDs derive from wrap UUIDs. Never replace
+  an existing signing key or reset its version record to recover an export failure.
+  APKs must be aligned, signed and verified before publication. Keep subprocesses
+  behind `AndroidToolchain`, compilation off the main actor, and Mac installation
+  state unchanged by APK exports.
+- **Android Boosts are separate.** Inject only into successful main-frame web
+  pages after loading; exclude untrusted and before-page JavaScript. Regex scopes
+  use JavaScript semantics. Do not claim live sync or Mac behavior parity, add a
+  JavaScript-to-native bridge, or bypass WebView TLS errors.
 
 ## Testing Notes
 
@@ -161,6 +182,8 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   whole-second date in Codable tests (`CodableModelTests.fixedDate`).
 - `BoostMatcher` caches compiled expressions across calls; call
   `BoostMatcher.clearCache()` in `setUp`.
+- Android device checks are in `AndroidRuntime/README.md`. Java policy tests do not
+  verify APK installation, WebView behavior, sign-in or Android lifecycle.
 - Manually verify: building into `/Applications` and `~/Applications`; a wrap of a
   site with SSO on another domain; a `target="_blank"` link; a PDF download; ⌘F, ⌘T,
   ⌘L, ⌘P; quitting and reopening — the page *and* the window come back: frame,
@@ -202,9 +225,10 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   icon URL would mean *executing* it), not for JSON, not for icons.
 - **Don't** grow a browser. No omnibox, no history UI, no bookmarks, no extensions.
   A wrap that becomes a bad browser has failed.
-- **Don't** put the injected JavaScript in `.js` resource files. It lives in Swift
+- **Don't** put the Mac injected JavaScript in `.js` resource files. It lives in Swift
   raw-string literals in `BoostScripts` because `AppBundleWriter` copies only the
   executable — a resource would have to be copied too and kept in step.
+  Android exports instead generate `assets/boosts.json` inside each APK.
 - **Don't** commit signing credentials or provisioning profiles.
 
 <!-- shared-rules:start -->
@@ -376,4 +400,3 @@ may waive review; report that waiver rather than claiming review passed.
   status, review rounds completed, and whether it is merged.
 
 <!-- shared-rules:end -->
-

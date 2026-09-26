@@ -23,6 +23,10 @@ struct LibraryView: View {
                 NewWrapView(model: model)
             case .settings:
                 BuilderSettingsView(model: model, preferences: model.preferences)
+            case .androidExport(let wrapID):
+                if let wrap = model.wraps.first(where: { $0.id == wrapID }) {
+                    AndroidExportView(model: model, preferences: model.preferences, wrap: wrap)
+                }
             }
         }
         .alert(Text(model.alert?.title ?? ""),

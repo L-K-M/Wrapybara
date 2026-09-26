@@ -101,7 +101,15 @@ So: a release whose version doesn't change won't prompt anyone to rebuild. Bump 
 
 ## What CI does *not* cover
 
-Wrapybara's own product — the apps it generates — can't be exercised in CI:
+The Android Export job runs the Java navigation tests and compiles two signed APKs
+with the production Swift packager. It checks APK contents, signature validity,
+signing-key reuse and refusal to replace damaged keys. Run it locally with
+`JAVA_HOME` and `ANDROID_HOME` set: `bash Tools/test-android-runtime.sh` and
+`bash Tools/test-android-build.sh`. Mac tests cover export planning, resource
+bundling and Boost execution/scoping. Device checks remain manual; see
+`AndroidRuntime/README.md`.
+
+Generated Mac apps cannot be fully exercised in CI:
 
 - `/usr/bin/codesign` is a Command Line Tools shim; signing a bundle needs a real
   toolchain and produces a bundle only a GUI session can launch.

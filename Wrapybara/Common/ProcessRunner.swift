@@ -2,8 +2,7 @@ import Foundation
 
 /// Runs a command-line tool and collects its output.
 ///
-/// Wrapybara shells out for exactly one thing — `codesign` — because macOS has no
-/// public API for creating a code signature. Everything else it does itself.
+/// Used for platform signing and the optional Android SDK build tools.
 enum ProcessRunner {
 
     struct Result {

@@ -1,0 +1,425 @@
+package com.wrapybara.runtime;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.graphics.Insets;
+import android.net.Uri;
+import android.net.http.SslError;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.webkit.CookieManager;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.LinearLayout;
+import android.widget.Toast;
+import android.widget.Toolbar;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+/** Standalone Android runtime. All configuration and Boosts live inside this APK. */
+public final class AndroidSiteActivity extends Activity {
+    private static final String PREFERENCES = "site";
+    private static final String LAST_PAGE = "lastPage";
+    private static final int MENU_HOME = 1;
+    private static final int MENU_RELOAD = 2;
+    private static final int MENU_BROWSER = 3;
+
+    private LinearLayout content;
+    private WebView webView;
+    private AndroidNavigationPolicy navigation;
+    private String homeURL;
+    private final List<String> boosts = new ArrayList<>();
+    private boolean restoreLastPage;
+    private boolean mainFrameFailed;
+    private AlertDialog errorDialog;
+    private Api33BackNavigation backNavigation;
+
+    @Override
+    public void onCreate(Bundle state) {
+        setTheme(android.R.style.Theme_Material_Light_NoActionBar);
+        super.onCreate(state);
+
+        try {
+            readConfiguration();
+        } catch (IOException | JSONException | IllegalArgumentException error) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Cannot open this app")
+                    .setMessage("Its configuration is invalid. Export the APK again from Wrapybara.")
+                    .setPositiveButton("Close", (dialog, which) -> finish())
+                    .setOnCancelListener(dialog -> finish())
+                    .show();
+            return;
+        }
+
+        createContent();
+        createWebView();
+        if (state == null || webView.restoreState(state) == null) webView.loadUrl(startURL());
+    }
+
+    private void readConfiguration() throws IOException, JSONException {
+        JSONObject config = new JSONObject(readAsset("wrap.json"));
+        homeURL = config.optString("homeURL");
+        if (!AndroidNavigationPolicy.isWebURL(homeURL)) {
+            throw new IllegalArgumentException("A web URL is required.");
+        }
+
+        setTitle(config.optString("name", "Site"));
+        restoreLastPage = config.optBoolean("restoreLastPage", true);
+        List<String> domains = new ArrayList<>();
+        JSONArray configuredDomains = config.optJSONArray("allowedDomains");
+        if (configuredDomains != null) {
+            for (int index = 0; index < configuredDomains.length(); index++) {
+                domains.add(configuredDomains.optString(index));
+            }
+        }
+
+        AndroidNavigationPolicy.ExternalLinks externalLinks =
+                config.optBoolean("openExternalLinksInBrowser", true)
+                ? AndroidNavigationPolicy.ExternalLinks.OPEN_IN_BROWSER
+                : AndroidNavigationPolicy.ExternalLinks.KEEP_IN_APP;
+        navigation = new AndroidNavigationPolicy(homeURL, domains, externalLinks);
+        JSONArray scripts = new JSONArray(readAsset("boosts.json"));
+        for (int index = 0; index < scripts.length(); index++) boosts.add(scripts.getString(index));
+    }
+
+    private String readAsset(String name) throws IOException {
+        try (InputStream input = getAssets().open(name);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void createContent() {
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        // Consume handled insets so WebView does not add the same safe area twice.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            content.setOnApplyWindowInsetsListener((view, insets) -> {
+                Insets safe = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        } else {
+            content.setFitsSystemWindows(true);
+        }
+
+        Toolbar toolbar = new Toolbar(this);
+        content.addView(toolbar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        setContentView(content);
+        setActionBar(toolbar);
+    }
+
+    private void createWebView() {
+        webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSafeBrowsingEnabled(true);
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setMediaPlaybackRequiresUserGesture(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        CookieManager.getInstance().setAcceptCookie(true);
+
+        // No JavaScript-to-native bridge: Boosts have only the website's privileges.
+        webView.setWebViewClient(new SiteClient());
+        webView.setWebChromeClient(new WebChromeClient());
+        webView.setDownloadListener((url, userAgent, disposition, mime, length) -> offerDownload(url));
+        content.addView(webView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+    }
+
+    private String startURL() {
+        if (!restoreLastPage) return homeURL;
+
+        String previous = getSharedPreferences(PREFERENCES, MODE_PRIVATE).getString(LAST_PAGE, null);
+        return AndroidNavigationPolicy.isWebURL(previous) ? previous : homeURL;
+    }
+
+    private void rememberPage() {
+        if (!restoreLastPage || mainFrameFailed || webView == null) return;
+
+        String current = webView.getUrl();
+        if (!AndroidNavigationPolicy.isWebURL(current)) return;
+
+        getSharedPreferences(PREFERENCES, MODE_PRIVATE).edit().putString(LAST_PAGE, current).apply();
+    }
+
+    private void loadPage(String url) {
+        if (!AndroidNavigationPolicy.isWebURL(url)) return;
+        if (webView == null) createWebView();
+
+        webView.loadUrl(url);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(Menu.NONE, MENU_HOME, Menu.NONE, "Home");
+        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, "Reload");
+        menu.add(Menu.NONE, MENU_BROWSER, Menu.NONE, "Open in browser");
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case MENU_HOME:
+                loadPage(homeURL);
+                return true;
+            case MENU_RELOAD:
+                if (webView == null) loadPage(startURL());
+                else webView.reload();
+                return true;
+            case MENU_BROWSER:
+                String current = webView == null ? homeURL : webView.getUrl();
+                if (AndroidNavigationPolicy.isWebURL(current)) openExternally(current);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void openExternally(String url) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException error) {
+            Toast.makeText(this, "No app can open this link.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void offerDownload(String url) {
+        if (!AndroidNavigationPolicy.isWebURL(url)) {
+            Toast.makeText(this, "This download is not supported.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Open download in browser?")
+                .setMessage("You may need to sign in again in your browser.")
+                .setPositiveButton("Open", (dialog, which) -> openExternally(url))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showPageError(String url, String description) {
+        mainFrameFailed = true;
+        if (webView != null) webView.setVisibility(View.INVISIBLE);
+        if (isFinishing() || isDestroyed()) return;
+        if (errorDialog != null) errorDialog.dismiss();
+
+        String retryURL = AndroidNavigationPolicy.isWebURL(url) ? url : homeURL;
+        errorDialog = new AlertDialog.Builder(this)
+                .setTitle("Could not load page")
+                .setMessage(description)
+                .setPositiveButton("Try again", (dialog, which) -> loadPage(retryURL))
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    // Register only when WebView can go back; otherwise Android owns normal Back behavior.
+    private void updateBackCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+
+        if (backNavigation == null) {
+            backNavigation = new Api33BackNavigation(this, () -> {
+                if (webView != null && webView.canGoBack()) webView.goBack();
+            });
+        }
+
+        backNavigation.update(webView != null && webView.canGoBack()
+                ? BackAction.PAGE_HISTORY : BackAction.SYSTEM);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        rememberPage();
+        if (webView != null) {
+            CookieManager.getInstance().flush();
+            webView.onPause();
+        }
+
+        super.onPause();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if (webView != null && !mainFrameFailed) webView.saveState(state);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (errorDialog != null) errorDialog.dismiss();
+        destroyWebView();
+        super.onDestroy();
+    }
+
+    private void destroyWebView() {
+        if (webView == null) return;
+
+        content.removeView(webView);
+        webView.destroy();
+        webView = null;
+        updateBackCallback();
+    }
+
+    private final class SiteClient extends WebViewClient {
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            AndroidNavigationPolicy.Trigger trigger = AndroidNavigationPolicy.Trigger.AUTOMATIC;
+            if (request.isRedirect()) trigger = AndroidNavigationPolicy.Trigger.REDIRECT;
+            else if (request.hasGesture()) trigger = AndroidNavigationPolicy.Trigger.USER;
+
+            AndroidNavigationPolicy.Frame frame = request.isForMainFrame()
+                    ? AndroidNavigationPolicy.Frame.MAIN : AndroidNavigationPolicy.Frame.SUBFRAME;
+            String url = request.getUrl().toString();
+            AndroidNavigationPolicy.Decision decision = navigation.decide(url, trigger, frame);
+            if (decision == AndroidNavigationPolicy.Decision.OPEN_EXTERNALLY) openExternally(url);
+            if (decision == AndroidNavigationPolicy.Decision.BLOCK
+                    && trigger == AndroidNavigationPolicy.Trigger.USER
+                    && frame == AndroidNavigationPolicy.Frame.MAIN) {
+                Toast.makeText(AndroidSiteActivity.this,
+                        "This link is not supported.", Toast.LENGTH_LONG).show();
+            }
+
+            return decision != AndroidNavigationPolicy.Decision.ALLOW;
+        }
+
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            mainFrameFailed = false;
+            view.setVisibility(View.VISIBLE);
+            if (errorDialog != null) errorDialog.dismiss();
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            updateBackCallback();
+            if (mainFrameFailed || !AndroidNavigationPolicy.isWebURL(url)
+                    || !url.equals(view.getUrl())) return;
+
+            rememberPage();
+            for (String source : boosts) view.evaluateJavascript(source, null);
+        }
+
+        @Override
+        public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+            updateBackCallback();
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (!request.isForMainFrame()) return;
+
+            showPageError(request.getUrl().toString(), error.getDescription().toString());
+        }
+
+        @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                                        WebResourceResponse response) {
+            if (!request.isForMainFrame()) return;
+
+            showPageError(request.getUrl().toString(), "The website returned HTTP "
+                    + response.getStatusCode() + ".");
+        }
+
+        @Override
+        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            handler.cancel();
+            if (!error.getUrl().equals(view.getUrl())) return;
+
+            showPageError(error.getUrl(), "The website's security certificate could not be verified.");
+        }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            String url = view.getUrl();
+            destroyWebView();
+            showPageError(url, "The page stopped. Try loading it again.");
+            return true;
+        }
+    }
+
+    private enum BackAction { PAGE_HISTORY, SYSTEM }
+
+    // Isolate API 33 types so Android 8 does not need to resolve their fields.
+    private static final class Api33BackNavigation {
+        private final OnBackInvokedDispatcher dispatcher;
+        private final OnBackInvokedCallback callback;
+        private boolean registered;
+
+        private Api33BackNavigation(Activity activity, Runnable onBack) {
+            dispatcher = activity.getOnBackInvokedDispatcher();
+            callback = onBack::run;
+        }
+
+        private void update(BackAction action) {
+            if (action == BackAction.PAGE_HISTORY && !registered) {
+                dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
+                registered = true;
+                return;
+            }
+            if (action != BackAction.SYSTEM || !registered) return;
+
+            dispatcher.unregisterOnBackInvokedCallback(callback);
+            registered = false;
+        }
+    }
+}
