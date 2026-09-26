@@ -48,7 +48,8 @@ that site — and behaves like something a person wrote on purpose.
   even once its window is completely covered. The app holds macOS's "user-initiated
   work" assertion instead of letting App Nap freeze its web content, and a covered
   window still counts as a page you're looking at, so the site never gets told to
-  pause itself.
+  pause itself. If your Mac sleeps long enough to drop the connection, you may
+  need to reload the page once.
 - **Dock badge** read out of the page title, the way a browser tab does it.
 - **Handoff** — pick the page up on your iPhone.
 - **A few megabytes**, because WebKit is already on your Mac. Not a few hundred.

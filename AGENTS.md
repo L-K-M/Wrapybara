@@ -180,8 +180,9 @@ Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Exp
   *attached* inspector fights the container's Auto Layout; a wrap built by an older
   version (the rebuild prompt); a streaming page (e.g. a chat) that keeps updating
   *and animating* while another app's window covers it, that keeps updating while
-  miniaturised and while parked on a background tab, and that catches up without
-  a reload after a display sleeps and wakes; a failed navigation with an
+  miniaturised, while hidden with ⌘H and while parked on a background tab, and
+  that catches up without a reload after a display sleeps and wakes; a failed
+  navigation with an
   *everywhere*-scoped boost switched on (the Dark preset will do) — the error page
   must keep its own styling, and Try Again must land on a page that has the boost
   back. `SiteWebController` can't be unit-driven without a live `WKWebView`, so this

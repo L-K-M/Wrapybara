@@ -316,8 +316,10 @@ Not one feature — the absence of twenty small failures.
   its own WebKit data directory. Two wraps of one site hold two different logins.
 - **A covered window keeps the page running.** macOS does three separate things to
   a page whose window it thinks nobody is looking at, and a wrap has to opt out of
-  all three or a streaming chat freezes the moment its window is covered. All of it
-  lives in `SiteWebViewFactory`.
+  all three or a streaming chat freezes the moment its window is covered. The
+  preference keys and the occlusion opt-out live in `SiteWebViewFactory`, the App
+  Nap activity in `SiteAppDelegate`, and the ⌘H and background-tab half of item 2
+  in `SiteWindow`.
 
   1. **DOM timers** are throttled to about once a second, and after a delay the
      WebContent process is suspended outright. Three undocumented `WKPreferences`
@@ -339,9 +341,11 @@ Not one feature — the absence of twenty small failures.
   3. **App Nap** on the app process, held off with a `ProcessInfo` activity — see
      the bullet above.
 
-  The cost is battery when a wrap is hidden; that is the point. Both opt-outs ride
-  undocumented WebKit keys set via KVC — fine under Developer ID distribution, but
-  re-review before any Mac App Store submission.
+  The cost is battery when a wrap is hidden; that is the point. The throttling
+  keys and `_windowOcclusionDetectionEnabled` are undocumented WebKit keys set via
+  KVC: fine under Developer ID distribution, but re-review before any Mac App Store
+  submission. `inactiveSchedulingPolicy` is public API and the App Nap activity is
+  ordinary `ProcessInfo`, so neither needs that caution.
 
   **What the occlusion switch cannot reach:** a window hidden with ⌘H, and a
   native tab sitting behind the selected one. Both make `NSWindow.isVisible` false
@@ -358,9 +362,9 @@ Not one feature — the absence of twenty small failures.
   Release check: open a streaming page in a wrap, cover the window with another app
   for a minute, and confirm the reply is still arriving *and* still animating —
   cover it, don't just click away, since an uncovered background window was never
-  affected. Repeat miniaturised and with two tabs, leaving the page in the
-  background tab for a few minutes: the reply must keep arriving in both, not catch
-  up on restore — and assert `document.visibilityState === "visible"` in each of
+  affected. Repeat miniaturised, hidden with ⌘H, and with two tabs, leaving the
+  page in the background tab for a few minutes: the reply must keep arriving in
+  each, not catch up on restore — and assert `document.visibilityState === "visible"` in each of
   those states, since a page that ignores `visibilitychange` would keep streaming
   even if the override had failed. Also leave it hidden 5+ minutes with the display
   asleep and confirm a timer-driven page still advances on wake. Then exercise the
