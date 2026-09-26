@@ -8,6 +8,7 @@ import static com.wrapybara.runtime.AndroidNavigationPolicy.Frame.*;
 public final class AndroidNavigationPolicyTest {
     public static void main(String[] arguments) {
         AndroidNavigationPolicy browser = new AndroidNavigationPolicy(
+                // Escaped so javac's platform default encoding can't mangle it.
                 "https://mail.example.com", Arrays.asList("trusted.test", "bücher.example"),
                 AndroidNavigationPolicy.ExternalLinks.OPEN_IN_BROWSER);
         AndroidNavigationPolicy inApp = new AndroidNavigationPolicy(
@@ -26,6 +27,13 @@ public final class AndroidNavigationPolicyTest {
         expect(browser, "https://identity.test/login", ALLOW, AUTOMATIC, MAIN);
         expect(browser, "https://external.test", ALLOW, USER, SUBFRAME);
         expect(inApp, "https://external.test", ALLOW, USER, MAIN);
+        // Scheme handling and redirects don't depend on the external-links setting.
+        expect(inApp, "mailto:user@example.com", OPEN_EXTERNALLY, USER, MAIN);
+        expect(inApp, "file:///etc/passwd", BLOCK, USER, MAIN);
+        expect(inApp, "https://identity.test/login", ALLOW, REDIRECT, MAIN);
+        // The restored last page is judged as a deliberate visit: an untrusted host
+        // doesn't reopen in the app, and the activity falls back to the home page.
+        expect(browser, "https://identity.test/login", OPEN_EXTERNALLY, USER, MAIN);
 
         for (String value : Arrays.asList("mailto:user@example.com", "tel:+1234", "sms:+1234", "geo:0,0")) {
             expect(browser, value, OPEN_EXTERNALLY, USER, MAIN);

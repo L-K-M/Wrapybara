@@ -45,6 +45,12 @@ struct AndroidExportPlan {
 
     var packageIdentifier: String { Self.packageIdentifier(for: configuration.wrap.id) }
 
+    /// Plain HTTP only for a wrap whose home page needs it; an HTTPS site's app
+    /// refuses cleartext, as Android does by default.
+    private var usesCleartextTraffic: Bool {
+        configuration.wrap.homeURL.scheme?.lowercased() == "http"
+    }
+
     var manifest: String {
         """
         <?xml version="1.0" encoding="utf-8"?>
@@ -56,7 +62,7 @@ struct AndroidExportPlan {
             <uses-permission android:name="android.permission.INTERNET" />
             <application android:label="@string/app_name" android:icon="@drawable/icon"
                 android:theme="@android:style/Theme.Material.Light.NoActionBar"
-                android:allowBackup="false" android:usesCleartextTraffic="true"
+                android:allowBackup="false" android:usesCleartextTraffic="\(usesCleartextTraffic)"
                 android:supportsRtl="true">
                 <activity android:name="com.wrapybara.runtime.AndroidSiteActivity"
                     android:exported="true" android:windowSoftInputMode="adjustResize">

@@ -27,13 +27,16 @@ Use Android 8 and Android 15 or later, with a current Android System WebView.
 1. Install an exported APK. Check its name, icon, home page, keyboard, rotation,
    status/navigation bar insets, Home, Reload, and Back.
 2. Sign in, force-stop, and reopen. Check the session and last page survive.
-   Install a rebuilt APK over it; check the same session remains.
+   Install a rebuilt APK over it; check the same session remains. Re-export with
+   the last page's host no longer allowed: reopening must land on the home page.
 3. Test an SSO redirect through another host. Check external links open in the
    browser, allowed hosts stay inside, and `target="_blank"` works in the current
    view. Providers that reject embedded browsers remain unsupported.
 4. Test allowed native links, plus `intent:`, `file:`, and `content:` links.
    Only a deliberate supported link should launch another app.
-5. Test Boost CSS and trusted JavaScript, including SPA navigation. Disconnect
+5. Test Boost CSS and trusted JavaScript, including SPA navigation, and Boost CSS
+   on a site whose Content-Security-Policy `style-src` omits `'unsafe-inline'`
+   (GitHub will do): the CSS must still apply. Disconnect
    networking and reload: the native error must appear without Boosts. Reconnect
    and choose Try again: the site and Boosts must return. Repeat with an invalid
    TLS certificate and a main-frame HTTP error.

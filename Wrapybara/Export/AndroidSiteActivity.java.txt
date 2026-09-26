@@ -171,7 +171,13 @@ public final class AndroidSiteActivity extends Activity {
         if (!restoreLastPage) return homeURL;
 
         String previous = getSharedPreferences(PREFERENCES, MODE_PRIVATE).getString(LAST_PAGE, null);
-        return AndroidNavigationPolicy.isWebURL(previous) ? previous : homeURL;
+        if (!AndroidNavigationPolicy.isWebURL(previous)) return homeURL;
+
+        // A later export may have narrowed the allowed hosts: resume only where the
+        // current policy would still keep a deliberate visit inside the app.
+        AndroidNavigationPolicy.Decision decision = navigation.decide(previous,
+                AndroidNavigationPolicy.Trigger.USER, AndroidNavigationPolicy.Frame.MAIN);
+        return decision == AndroidNavigationPolicy.Decision.ALLOW ? previous : homeURL;
     }
 
     private void rememberPage() {
@@ -368,7 +374,8 @@ public final class AndroidSiteActivity extends Activity {
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
             if (!request.isForMainFrame()) return;
 
-            showPageError(request.getUrl().toString(), error.getDescription().toString());
+            // getDescription() carries no non-null guarantee; this path must not crash.
+            showPageError(request.getUrl().toString(), String.valueOf(error.getDescription()));
         }
 
         @Override

@@ -73,7 +73,11 @@ final class Preferences: ObservableObject {
     }
 
     var androidSDKDirectory: URL {
-        Self.directoryURL(for: androidSDKDirectoryPath)
+        // A cleared field means the standard location, not a path relative to nowhere.
+        guard !androidSDKDirectoryPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return Self.defaultAndroidSDKDirectory
+        }
+        return Self.directoryURL(for: androidSDKDirectoryPath)
     }
 
     var androidJavaHome: URL? {

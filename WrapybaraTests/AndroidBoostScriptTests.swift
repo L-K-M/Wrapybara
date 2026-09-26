@@ -29,6 +29,18 @@ final class AndroidBoostScriptTests: XCTestCase {
         return context
     }
 
+    /// The same page on a WebView with constructable stylesheets.
+    private func modernContext() throws -> JSContext {
+        let context = try context()
+        context.evaluateScript(#"""
+        document.adoptedStyleSheets = [];
+        var CSSStyleSheet = function () { this.text = ''; };
+        CSSStyleSheet.prototype.replaceSync = function (text) { this.text = text; };
+        function sheetCSS() { return document.adoptedStyleSheets.map(function (s) { return s.text; }).join(''); }
+        """#)
+        return context
+    }
+
     private func evaluate(_ sources: [String], in context: JSContext) {
         for source in sources { context.evaluateScript(source) }
     }
@@ -105,6 +117,30 @@ final class AndroidBoostScriptTests: XCTestCase {
             XCTAssertEqual(js.evaluateScript("css().includes('matched')")?.toBool(), expected,
                            match.pattern)
         }
+    }
+
+    func testCSSUsesAConstructedStylesheetThatPageCSPCannotBlock() throws {
+        let boost = Boost(match: BoostMatch(kind: .urlPrefix, pattern: "https://example.com/docs"),
+                          css: "body { color: red }")
+        let js = try modernContext()
+        evaluate(try AndroidBoostScript.make(boosts: [boost]), in: js)
+        XCTAssertTrue(js.evaluateScript("sheetCSS()")?.toString().contains("color: red") == true)
+        let styleElement = js.evaluateScript("typeof elements.__wrapybara_android_style")?.toString()
+        XCTAssertEqual(styleElement, "undefined")
+        js.evaluateScript("history.pushState(null, '', 'https://example.com/other')")
+        XCTAssertEqual(js.evaluateScript("sheetCSS()")?.toString(), "")
+    }
+
+    func testCSSWithImportFallsBackToAStyleElement() throws {
+        let js = try modernContext()
+        evaluate(try AndroidBoostScript.make(boosts: [Boost(css: "@import url(fonts.css);")]), in: js)
+        XCTAssertTrue(js.evaluateScript("css()")?.toString().contains("@import") == true)
+        XCTAssertEqual(js.evaluateScript("sheetCSS()")?.toString(), "")
+    }
+
+    func testNoEnabledBoostsInjectsNothing() throws {
+        XCTAssertEqual(try AndroidBoostScript.make(boosts: [Boost(isEnabled: false, css: "body { color: red }")]),
+                       [])
     }
 
     func testStylesheetCannotBecomeExecutableCode() throws {

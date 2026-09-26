@@ -19,6 +19,8 @@ enum AndroidBoostScript {
 
     static func make(boosts: [Boost]) throws -> [String] {
         let enabled = boosts.filter { $0.isEnabled && !$0.isEmpty }
+        // Nothing to apply means no history hooks on the user's pages either.
+        guard !enabled.isEmpty else { return [] }
         let payload: [[String: Any]] = enabled.map { boost in
             var pattern = boost.match.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
             if boost.match.kind == .domain { pattern = BoostMatcher.normalizedHost(pattern) }
@@ -67,15 +69,51 @@ enum AndroidBoostScript {
             }
           }
 
-          function apply() {
-            const applicable = boosts.filter(matches);
+          // A constructed stylesheet is CSSOM, not an inline <style>, so a page's CSP
+          // style-src can't refuse it. <style> remains the fallback for older WebViews
+          // and for CSS with @import, which constructed sheets don't load.
+          let sheet;
+          function constructedSheet() {
+            if (sheet === undefined) {
+              try {
+                sheet = typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in document
+                  ? new CSSStyleSheet() : null;
+              } catch (_) { sheet = null; }
+            }
+            return sheet;
+          }
+
+          function setCSS(text) {
+            const target = /@import/i.test(text) ? null : constructedSheet();
+            let adopted = false;
+            if (target) {
+              try {
+                target.replaceSync(text);
+                // Adopt again if the page has replaced the list since.
+                if (!document.adoptedStyleSheets.includes(target)) {
+                  document.adoptedStyleSheets = [...document.adoptedStyleSheets, target];
+                }
+                adopted = true;
+              } catch (_) { target.replaceSync(''); }
+            } else if (sheet) {
+              sheet.replaceSync('');
+            }
             let style = document.getElementById(styleID);
+            if (adopted) {
+              if (style) style.textContent = '';
+              return;
+            }
             if (!style) {
               style = document.createElement('style');
               style.id = styleID;
               (document.head || document.documentElement).appendChild(style);
             }
-            style.textContent = applicable.map(b => b.css).join('\n');
+            style.textContent = text;
+          }
+
+          function apply() {
+            const applicable = boosts.filter(matches);
+            setCSS(applicable.map(b => b.css).join('\n'));
             for (const boost of applicable) {
               const run = scripts.get(boost.id);
               if (!run || executed.has(boost.id)) continue;

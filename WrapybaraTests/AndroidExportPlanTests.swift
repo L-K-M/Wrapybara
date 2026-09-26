@@ -32,7 +32,17 @@ final class AndroidExportPlanTests: XCTestCase {
                                                    versionCode: 1))
     }
 
+    func testCleartextOnlyForAnHTTPHomePage() throws {
+        let secure = try AndroidExportPlan(configuration: configuration(), versionCode: 1)
+        XCTAssertTrue(secure.manifest.contains("android:usesCleartextTraffic=\"false\""))
+        let plain = try AndroidExportPlan(configuration: configuration(address: "http://nas.local:5000"),
+                                          versionCode: 1)
+        XCTAssertTrue(plain.manifest.contains("android:usesCleartextTraffic=\"true\""))
+    }
+
     func testVersionBounds() {
+        XCTAssertNoThrow(try AndroidExportPlan(configuration: configuration(),
+                                               versionCode: AndroidExportPlan.maximumVersionCode))
         for version in [0, -1, AndroidExportPlan.maximumVersionCode + 1] {
             XCTAssertThrowsError(try AndroidExportPlan(configuration: configuration(), versionCode: version))
         }
