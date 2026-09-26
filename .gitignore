@@ -59,7 +59,12 @@ Carthage/Build/
 *.mobileprovision
 *.provisionprofile
 *.p12
+*.pfx
 *.cer
+*.apk
+*.aab
+*.jks
+*.keystore
 
 # Misc
 *.swp

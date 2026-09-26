@@ -2,8 +2,7 @@ import Foundation
 
 /// Runs a command-line tool and collects its output.
 ///
-/// Wrapybara shells out for exactly one thing — `codesign` — because macOS has no
-/// public API for creating a code signature. Everything else it does itself.
+/// Used for platform signing and the optional Android SDK build tools.
 enum ProcessRunner {
 
     struct Result {
@@ -44,8 +43,12 @@ enum ProcessRunner {
     /// Reads both pipes concurrently on background queues. Draining them after
     /// `waitUntilExit` instead would deadlock the moment a tool writes more than a
     /// pipe buffer (64 KB) — `codesign --verbose` on a large bundle does.
+    ///
+    /// - Parameter environment: added to the inherited environment, never in place
+    ///   of it. A secret passed here stays off disk and out of `arguments`.
     static func run(_ executable: String,
                     arguments: [String],
+                    environment: [String: String] = [:],
                     timeout: TimeInterval = 120) throws -> Result {
         guard FileManager.default.isExecutableFile(atPath: executable) else {
             throw RunError.notExecutable(executable)
@@ -54,6 +57,10 @@ enum ProcessRunner {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        if !environment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment
+                .merging(environment) { _, added in added }
+        }
 
         let outPipe = Pipe()
         let errPipe = Pipe()

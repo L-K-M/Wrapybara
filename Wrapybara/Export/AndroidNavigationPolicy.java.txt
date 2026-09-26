@@ -1,0 +1,98 @@
+package com.wrapybara.runtime;
+
+import java.net.IDN;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/** Keeps redirects in the app and sends only deliberate external links elsewhere. */
+final class AndroidNavigationPolicy {
+    enum Decision { ALLOW, OPEN_EXTERNALLY, BLOCK }
+    enum Trigger { USER, AUTOMATIC, REDIRECT }
+    enum Frame { MAIN, SUBFRAME }
+    enum ExternalLinks { KEEP_IN_APP, OPEN_IN_BROWSER }
+
+    private final List<String> allowedHosts = new ArrayList<>();
+    private final ExternalLinks externalLinks;
+
+    AndroidNavigationPolicy(String homeURL, List<String> domains, ExternalLinks externalLinks) {
+        this.externalLinks = externalLinks;
+        URI home = parse(homeURL);
+        if (home != null) allowedHosts.add(normalizedHost(home.getHost()));
+
+        for (String domain : domains) {
+            String host = normalizedHost(domain);
+            if (!host.isEmpty()) allowedHosts.add(host);
+        }
+    }
+
+    Decision decide(String value, Trigger trigger, Frame frame) {
+        URI uri = parse(value);
+        if (uri == null || uri.getScheme() == null) return Decision.BLOCK;
+
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        if (isWebURL(value)) {
+            if (frame == Frame.SUBFRAME || trigger != Trigger.USER) return Decision.ALLOW;
+            if (externalLinks == ExternalLinks.KEEP_IN_APP || isInApp(uri)) return Decision.ALLOW;
+
+            return Decision.OPEN_EXTERNALLY;
+        }
+
+        // These stay within WebView; local files and native intents never do.
+        if (scheme.equals("about") || scheme.equals("blob") || scheme.equals("data")) {
+            return Decision.ALLOW;
+        }
+
+        if (frame != Frame.MAIN || trigger != Trigger.USER) return Decision.BLOCK;
+        if (scheme.equals("mailto") || scheme.equals("tel")
+                || scheme.equals("sms") || scheme.equals("geo")) {
+            return Decision.OPEN_EXTERNALLY;
+        }
+
+        return Decision.BLOCK;
+    }
+
+    static boolean isWebURL(String value) {
+        URI uri = parse(value);
+        if (uri == null || uri.getHost() == null) return false;
+
+        String scheme = uri.getScheme();
+        return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+    }
+
+    private boolean isInApp(URI uri) {
+        String host = normalizedHost(uri.getHost());
+        for (String allowed : allowedHosts) {
+            if (allowed.isEmpty()) continue;
+            if (host.equals(allowed) || host.endsWith("." + allowed)) return true;
+        }
+
+        return false;
+    }
+
+    private static String normalizedHost(String value) {
+        if (value == null) return "";
+
+        String host = value.trim().toLowerCase(Locale.ROOT);
+        while (host.endsWith(".")) host = host.substring(0, host.length() - 1);
+        if (host.startsWith("[")) return host;
+
+        try {
+            return IDN.toASCII(host);
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
+    }
+
+    private static URI parse(String value) {
+        if (value == null) return null;
+
+        try {
+            return new URI(value);
+        } catch (URISyntaxException ignored) {
+            return null;
+        }
+    }
+}

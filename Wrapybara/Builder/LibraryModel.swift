@@ -40,11 +40,13 @@ final class LibraryModel: ObservableObject {
     enum Sheet: Identifiable {
         case newWrap
         case settings
+        case androidExport(UUID)
 
         var id: String {
             switch self {
             case .newWrap: return "newWrap"
             case .settings: return "settings"
+            case .androidExport(let wrapID): return "androidExport-\(wrapID.uuidString)"
             }
         }
     }

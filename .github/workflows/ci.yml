@@ -20,6 +20,24 @@ env:
   SCHEME: Wrapybara
 
 jobs:
+  android-export:
+    name: Android Export
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Android build packages
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
+
+      - name: Test runtime policy and APK export
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          bash Tools/test-android-runtime.sh
+          bash Tools/test-android-build.sh
+
   build-test:
     name: Build & Test
     runs-on: macos-14

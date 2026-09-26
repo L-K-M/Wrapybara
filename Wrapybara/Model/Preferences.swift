@@ -12,6 +12,9 @@ final class Preferences: ObservableObject {
         self.defaults = defaults
         self.installDirectoryPath = defaults.string(forKey: Key.installDirectory)
             ?? Self.defaultInstallDirectory.path
+        self.androidSDKDirectoryPath = defaults.string(forKey: Key.androidSDKDirectory)
+            ?? Self.defaultAndroidSDKDirectory.path
+        self.androidJavaHomePath = defaults.string(forKey: Key.androidJavaHome) ?? ""
         self.signingIdentity = defaults.string(forKey: Key.signingIdentity) ?? CodeSigner.adHocIdentity
         self.iconStyle = IconComposer.Style(rawValue: defaults.string(forKey: Key.iconStyle) ?? "")
             ?? .plate
@@ -23,6 +26,8 @@ final class Preferences: ObservableObject {
 
     private enum Key {
         static let installDirectory = "Preferences.installDirectory"
+        static let androidSDKDirectory = "Preferences.androidSDKDirectory"
+        static let androidJavaHome = "Preferences.androidJavaHome"
         static let signingIdentity = "Preferences.signingIdentity"
         static let iconStyle = "Preferences.iconStyle"
         static let revealAfterBuild = "Preferences.revealAfterBuild"
@@ -54,6 +59,42 @@ final class Preferences: ObservableObject {
     static var userApplicationsDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications", isDirectory: true)
+    }
+
+    // MARK: Android toolchain
+
+    @Published var androidSDKDirectoryPath: String {
+        didSet { defaults.set(androidSDKDirectoryPath, forKey: Key.androidSDKDirectory) }
+    }
+
+    /// Empty uses the exporter's JDK discovery.
+    @Published var androidJavaHomePath: String {
+        didSet { defaults.set(androidJavaHomePath, forKey: Key.androidJavaHome) }
+    }
+
+    var androidSDKDirectory: URL {
+        // A cleared field means the standard location, not a path relative to nowhere.
+        guard !androidSDKDirectoryPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return Self.defaultAndroidSDKDirectory
+        }
+        return Self.directoryURL(for: androidSDKDirectoryPath)
+    }
+
+    var androidJavaHome: URL? {
+        guard !androidJavaHomePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return Self.directoryURL(for: androidJavaHomePath)
+    }
+
+    private static var defaultAndroidSDKDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Android/sdk", isDirectory: true)
+    }
+
+    private static func directoryURL(for path: String) -> URL {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
     }
 
     // MARK: Signing

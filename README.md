@@ -106,6 +106,43 @@ right-click → **Open** → **Open**, or
 xattr -dr com.apple.quarantine /Applications/Wrapybara.app
 ```
 
+## Export an Android APK
+
+The Mac builder can also export standalone apps for **Android 8 or later**. Each
+APK has its own icon, package identifier and login storage, using Android's WebView.
+
+Install **JDK 17 or later** and the [Android command-line tools](https://developer.android.com/tools/sdkmanager).
+Install the required SDK packages and accept their licences:
+
+```sh
+~/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager \
+  "platforms;android-35" "build-tools;35.0.0"
+```
+
+Select a wrap and choose **Export Android APK…**. Set your SDK folder; leave JDK
+home blank for automatic discovery, or select the JDK's `Contents/Home` folder.
+Choose **Export APK…**, save it, then transfer it to your device. Android may ask
+you to allow installation from the app opening the APK. Wrapybara downloads no
+build tools and needs neither Android Studio nor Gradle.
+
+Keep the same wrap when exporting updates. Back up
+`~/Library/Application Support/Wrapybara/`, including **AndroidSigning** (keys) and
+**AndroidExports** (update versions). Each key's password is kept in your login
+Keychain, not in that folder, so keep your Keychain too; Time Machine and Migration
+Assistant carry both. Losing a signing key or its password prevents updates to its
+installed apps. Renaming a wrap preserves its Android identity.
+
+Android has a smaller feature set:
+
+- Boosts apply to the main page after loading. Before-page scripts are skipped;
+  regex scopes use JavaScript syntax, which can differ from Mac matching.
+- Rebuild and reinstall to apply edits. There is no live sync with the Mac.
+- Some sign-ins reject WebViews. Android may suspend background updates.
+- New-tab links use the current view. Mac window, tab and user-agent settings do
+  not apply; Mac menus, Handoff and Dock integration are unavailable.
+- Downloads open in your browser and may require signing in again. File uploads,
+  camera, microphone and website notifications are not supported.
+
 ## Build from source
 
 Requires **Xcode 16+**. No dependencies.
@@ -122,15 +159,19 @@ plus `docs/icon.png`.
 
 ## How it works
 
-One binary, two lives. `Wrapybara.app/Contents/MacOS/Wrapybara` is copied byte for
-byte into each app it builds; the copy reads a `WBWrapIdentifier` key out of its own
+One Mac binary, two lives. `Wrapybara.app/Contents/MacOS/Wrapybara` is copied byte for
+byte into each Mac app it builds; the copy reads a `WBWrapIdentifier` key out of its own
 `Info.plist` and runs as a site app instead of the builder. So a generated app holds
 no reference back to Wrapybara — **deleting Wrapybara doesn't break the apps it
 built.**
 
-Each app carries a baked-in copy of its configuration and also watches a shared
+Each Mac app carries a baked-in copy of its configuration and also watches a shared
 directory for the live one, taking whichever is newer. That's what makes editing a
 boost show up in a running app.
+
+Android export compiles a separate Java runtime with your local SDK and JDK,
+packages its configuration and Boosts, then signs and verifies the APK. The APK
+needs neither Wrapybara nor a connection to your Mac.
 
 [`PLAN.md`](PLAN.md) has the full design, including why WebKit rather than Chromium,
 Gecko or Servo — and what would have to change for a Servo backend to make sense.

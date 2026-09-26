@@ -53,7 +53,7 @@ forever.
 
 ---
 
-## 2. Engine choice
+## 2. Mac engine choice
 
 This deserves a straight answer because it constrains everything else.
 
@@ -132,7 +132,7 @@ surface it.
 
 ## 3. Shape of the thing
 
-One Xcode target, one binary, two lives.
+On macOS: one Xcode target, one binary, two lives.
 
 ```
 Wrapybara.app                     the builder: library, editors, exporter
@@ -188,6 +188,56 @@ mysterious app that dies on launch.
 seed, and rebuilding the app beats a stale store entry. A generated app watches the
 directory (not the file — atomic writes replace the inode) and re-applies without a
 relaunch. Drag a slider in the boost editor; the app in front of you restyles.
+
+### Android APK export
+
+The Mac editor also exports standalone APKs for Android 8+ (API 26), targeting API
+35. A separate Java runtime uses Android's system WebView. There is no Android
+builder, bundled browser engine, Gradle dependency or downloaded toolchain.
+
+```
+LibraryModel -> AndroidAPKExporter -> AndroidAPKBuilder -> AndroidToolchain
+                    |                                      |
+            AndroidExportPlan                         SDK / JDK tools
+                    |
+          configuration + Boosts + icon + Java runtime -> signed APK
+```
+
+`LibraryModel` snapshots the resolved configuration and icon on the main actor;
+compilation runs off it. `AndroidExportPlan` owns pure package, manifest and
+configuration generation. `AndroidBoostScript` reuses CSS generation and trusted
+script filtering. `AndroidAPKBuilder` compiles resources and Java, creates DEX,
+aligns the APK, signs it and verifies the signature before publication.
+`AndroidToolchain` requires SDK Platform 35, Build-Tools 35.0.0 and JDK 17+.
+
+Package identity derives from the immutable wrap UUID, independently of the Mac
+bundle identifier. `AndroidSigning/<package>/` retains the local PKCS#12 key. Its
+password lives apart from it in the login Keychain (service
+`com.wrapybara.android-signing`, one item per package, never replaced), and
+`keytool` and `apksigner` read it from an environment variable rather than a file
+or an argument, so a synced or unencrypted copy of the folder can't sign an update.
+`AndroidExports/<package>.json` retains increasing version codes. Back up the folder
+with the library and keep the Keychain; Time Machine and Migration Assistant carry
+both. Existing records with missing keys fail instead of creating
+an incompatible update. APK export never changes the installed Mac app's state.
+
+Java sources live in `Export/*.java.txt`, copied into the builder as resources and
+compiled during export. APK assets carry the complete runtime configuration and
+generated Boost script; the installed app has no dependency on the builder.
+
+The runtime supports isolated cookies/storage, back navigation, home/reload,
+allowed domains, external link routing and last-page restoration. Redirects remain
+inside the app. New-tab links use the current WebView; downloads open externally
+after explaining that browser sign-in may be needed. It exposes no native
+JavaScript bridge and does not bypass TLS errors.
+
+Boosts run after page load, in the main frame only. Before-page scripts are
+omitted, and untrusted scripts stay excluded. Regex scopes use JavaScript rather
+than ICU semantics. Editing requires rebuilding and reinstalling; no shared Mac
+directory or live synchronization exists on Android. Android controls background
+execution, and some sign-in providers reject embedded WebViews. Mac window/tab/UA
+settings, native integrations, file uploads, camera/microphone access and website
+notifications are outside this first runtime.
 
 ---
 
@@ -389,11 +439,15 @@ Wrapybara/
                             WrapIcon, IconPlate, WrapConfiguration, WrapLibrary,
                             Preferences, ColorHex, DecodingDefaults
   Boosts/                   BoostMatcher, BoostCSSGenerator, BoostInjector,
-                            BoostScripts (the injected JS)
+                            BoostScripts, AndroidBoostScript (the injected JS)
   Store/                    AppSupport (paths), JSONFileStore, WrapStore
   Export/                   InfoPlistBuilder, AppBundleWriter, IcnsWriter,
                             CodeSigner, WrapExporter, AppNameSanitizer,
-                            BundleIdentifierGenerator, ExtendedAttributes
+                            BundleIdentifierGenerator, ExtendedAttributes,
+                            AndroidAPKExporter, AndroidAPKBuilder, AndroidExportPlan,
+                            AndroidToolchain, AndroidSigningIdentity,
+                            AndroidSigningPasswordStore,
+                            Android Java runtime sources (*.java.txt)
   Icons/                    SiteMarkupParser, SiteIconFetcher, IconCandidate,
                             IconComposer, PlatePattern
   Site/                     SiteAppDelegate, SiteWindowController, SiteWindow,
@@ -405,9 +459,10 @@ Wrapybara/
                             LibraryWindowController, LibraryModel, LibraryView,
                             WrapEditorView, BehaviorEditorView, BoostsTabView,
                             BoostEditorView, BoostPreviewController/View,
-                            NewWrapView, BuilderSettingsView, CodeEditor
+                            NewWrapView, BuilderSettingsView, AndroidExportView, CodeEditor
   Updates/                  the shared GitHub-release updater
   Common/                   ProcessRunner
+AndroidRuntime/             Java runtime tests
 ```
 
 The split that matters: **everything decidable is pure and tested.** URL matching,
