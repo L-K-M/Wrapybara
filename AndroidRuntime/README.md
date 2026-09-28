@@ -28,6 +28,8 @@ Use Android 8 and Android 15 or later, with a current Android System WebView.
    and Back. There must be no toolbar. The status and navigation bars must take
    the page's `theme-color` or background, with legible icons, on Android 15
    with 3-button navigation too (no grey scrim), and keep them through rotation.
+   Follow a link between two dark pages of a multi-page site: the bars must not
+   flash white while the second page loads.
 2. Pull down from the top of a document page: it must reload. On a chat-like page
    that scrolls an inner list, dragging back through the history must never
    reload; a new drag with the list at its top, or from the site's header, must.

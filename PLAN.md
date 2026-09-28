@@ -230,7 +230,8 @@ external link routing and last-page restoration. Redirects remain inside the app
 
 It has no toolbar: a site app on a phone should look like the site. The strips
 under the system bars take the page's `theme-color`, else its body or root
-background, read after load and on single-page navigation; Android 15 draws apps
+background, read as a page first paints, after load and on single-page navigation
+(never at commit, when the new page is still empty); Android 15 draws apps
 under transparent bars, so the runtime paints those strips itself. Pulling down
 past the page top reloads. It arms only when WebView reports scroll the page
 could not use at its top, the signal Chrome's own pull-to-refresh uses, because

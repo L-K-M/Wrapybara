@@ -73,6 +73,11 @@ public final class AndroidSiteActivity extends Activity {
             + "return [color(theme && theme.content), background(document.body),"
             + "background(document.documentElement)]; })()";
 
+    // A new page is still empty when its navigation commits and would read as white,
+    // so reads that can run then wait until it has parsed.
+    private static final String PARSED_PAGE_COLORS_SCRIPT =
+            "document.readyState === 'loading' ? null : " + PAGE_COLORS_SCRIPT;
+
     private SiteLayout content;
     private WebView webView;
     private AndroidReloadIndicator reloadIndicator;
@@ -266,9 +271,10 @@ public final class AndroidSiteActivity extends Activity {
         decor.setSystemUiVisibility(flags);
     }
 
-    private void readPageColors(WebView view) {
-        view.evaluateJavascript(PAGE_COLORS_SCRIPT, result -> {
-            if (view != webView || mainFrameFailed) return;
+    private void readPageColors(WebView view, String script) {
+        view.evaluateJavascript(script, result -> {
+            // "null" is a page still parsing; a later read will colour the bars for it.
+            if (view != webView || mainFrameFailed || "null".equals(result)) return;
 
             try {
                 JSONArray values = new JSONArray(result);
@@ -527,14 +533,21 @@ public final class AndroidSiteActivity extends Activity {
             rememberPage();
             for (String source : boosts) view.evaluateJavascript(source, null);
             // After the Boosts, so a Boost that recolours the page recolours the bars.
-            readPageColors(view);
+            readPageColors(view, PAGE_COLORS_SCRIPT);
+        }
+
+        @Override
+        public void onPageCommitVisible(WebView view, String url) {
+            // The new page is about to paint. Waiting for onPageFinished would leave the
+            // last page's colours around it until its slowest image had loaded.
+            if (!mainFrameFailed) readPageColors(view, PAGE_COLORS_SCRIPT);
         }
 
         @Override
         public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
             updateBackCallback();
             // Single-page apps change pages without loading; their colours may change too.
-            if (!mainFrameFailed) readPageColors(view);
+            if (!mainFrameFailed) readPageColors(view, PARSED_PAGE_COLORS_SCRIPT);
         }
 
         @Override
