@@ -20,6 +20,8 @@ jobs:
   release:
     name: Build & publish (unsigned)
     runs-on: macos-14
+    # don't let a wedged xcodebuild stall a release for 6h
+    timeout-minutes: 45
     steps:
       # Pin actions to commit SHAs: a mutable tag can be repointed at tampered code,
       # a SHA cannot — and this workflow holds contents:write and produces the bytes
