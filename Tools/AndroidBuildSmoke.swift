@@ -132,7 +132,8 @@ enum AndroidBuildSmoke {
             .write(to: directory.appendingPathComponent("assets/wrap.json"), atomically: true, encoding: .utf8)
         try "[]".write(to: directory.appendingPathComponent("assets/boosts.json"),
                        atomically: true, encoding: .utf8)
-        for name in ["AndroidSiteActivity", "AndroidNavigationPolicy"] {
+        for name in ["AndroidSiteActivity", "AndroidNavigationPolicy", "AndroidPageColors",
+                     "AndroidPullGesture", "AndroidReloadIndicator", "AndroidShortcuts"] {
             try FileManager.default.copyItem(
                 at: repository.appendingPathComponent("Wrapybara/Export/\(name).java.txt"),
                 to: directory.appendingPathComponent("src/com/wrapybara/runtime/\(name).java"))

@@ -225,9 +225,22 @@ Java sources live in `Export/*.java.txt`, copied into the builder as resources a
 compiled during export. APK assets carry the complete runtime configuration and
 generated Boost script; the installed app has no dependency on the builder.
 
-The runtime supports isolated cookies/storage, back navigation, home/reload,
-allowed domains, external link routing and last-page restoration. Redirects remain
-inside the app. New-tab links use the current WebView; downloads open externally
+The runtime supports isolated cookies/storage, back navigation, allowed domains,
+external link routing and last-page restoration. Redirects remain inside the app.
+
+It has no toolbar: a site app on a phone should look like the site. The strips
+under the system bars take the page's `theme-color`, else its body or root
+background, read as a page first paints, after load and on single-page navigation
+(never at commit, when the new page is still empty); Android 15 draws apps
+under transparent bars, so the runtime paints those strips itself. Pulling down
+past the page top reloads. It arms only when WebView reports scroll the page
+could not use at its top, the signal Chrome's own pull-to-refresh uses, because
+an app-like page scrolls an inner element and would otherwise look "at the top"
+while the user reads back through its history. Home, Reload and Open in browser
+are dynamic launcher shortcuts. The activity is exported for the launcher, so each
+shortcut carries a random per-install token and intents without it are ignored.
+After a failed load, the hidden page's area says to pull down, and the pull
+retries. New-tab links use the current WebView; downloads open externally
 after explaining that browser sign-in may be needed. It exposes no native
 JavaScript bridge and does not bypass TLS errors.
 
