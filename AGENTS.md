@@ -174,6 +174,13 @@ Java tests, run by `Tools/test-android-runtime.sh`.
   APKs must be aligned, signed and verified before publication. Keep subprocesses
   behind `AndroidToolchain`, compilation off the main actor, and Mac installation
   state unchanged by APK exports.
+- **Android pull-to-reload arms on overscroll, never on scroll position.** Only
+  `SiteWebView.overScrollBy` (scroll the page could not use, past its top) may arm
+  it. `canScrollVertically` is always false on a page that scrolls an inner
+  element, so gating on it reloads a chat whenever the user reads back through its
+  history. Android shortcut actions are honoured only with their per-install
+  token (`AndroidShortcuts`): the activity is exported, and any app can send it
+  intents.
 - **Android Boosts are separate.** Inject only into successful main-frame web
   pages after loading; exclude untrusted and before-page JavaScript. Regex scopes
   use JavaScript semantics. Do not claim live sync or Mac behavior parity, add a

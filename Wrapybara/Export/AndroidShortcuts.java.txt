@@ -1,0 +1,184 @@
+package com.wrapybara.runtime;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.graphics.drawable.Icon;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Home, Reload and Open in browser, offered from the launcher icon's long-press
+ * menu so the page itself carries no toolbar.
+ *
+ * The activity is exported for the launcher, so any app could send it these
+ * actions. Each shortcut carries a random per-install token that only the
+ * launcher can read back, and an intent without it is ignored.
+ */
+final class AndroidShortcuts {
+    enum Action { HOME, RELOAD, OPEN_IN_BROWSER }
+
+    private static final String ACTION_PREFIX = "com.wrapybara.runtime.shortcut.";
+    private static final String TOKEN_EXTRA = ACTION_PREFIX + "token";
+    private static final String PREFERENCES = "shortcuts";
+    private static final String TOKEN_KEY = "token";
+    private static final int TOKEN_BYTES = 16;
+
+    // Adaptive icons are 108 units square, masked to the middle 72; the glyph is
+    // drawn on Material's 24-unit grid inside that.
+    private static final float ICON_UNITS = 108;
+    private static final float GLYPH_UNITS = 24;
+    private static final float GLYPH_SCALE = 44 / GLYPH_UNITS;
+    private static final float GLYPH_STROKE = 2;
+    private static final int ICON_BACKGROUND = 0xFFF1F3F4;
+    private static final int ICON_GLYPH = 0xFF3C4043;
+
+    private AndroidShortcuts() {}
+
+    /** Publishes the shortcuts. The long-press menu is a convenience, so failure is ignored. */
+    static void publish(Activity activity) {
+        ShortcutManager manager = activity.getSystemService(ShortcutManager.class);
+        if (manager == null) return;
+
+        String token = token(activity);
+        List<ShortcutInfo> shortcuts = new ArrayList<>();
+        shortcuts.add(shortcut(activity, manager, token, Action.HOME, "Home", "Home"));
+        shortcuts.add(shortcut(activity, manager, token, Action.RELOAD, "Reload", "Reload"));
+        shortcuts.add(shortcut(activity, manager, token, Action.OPEN_IN_BROWSER,
+                "Browser", "Open in browser"));
+        try {
+            // Returns false when rate-limited; the previous set stays published.
+            manager.setDynamicShortcuts(shortcuts);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            // The user is locked or the launcher refused the set; the app works without it.
+        }
+    }
+
+    /** The shortcut {@code intent} asks for, or null when it is not one of ours. */
+    static Action requested(Context context, Intent intent) {
+        if (intent == null) return null;
+        if ((intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return null;
+
+        String action = intent.getAction();
+        if (action == null || !action.startsWith(ACTION_PREFIX)) return null;
+
+        String token;
+        try {
+            token = intent.getStringExtra(TOKEN_EXTRA);
+        } catch (RuntimeException malformedExtras) {
+            return null;
+        }
+        String expected = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .getString(TOKEN_KEY, null);
+        if (token == null || expected == null || !MessageDigest.isEqual(
+                token.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8))) {
+            return null;
+        }
+
+        for (Action candidate : Action.values()) {
+            if (action.equals(ACTION_PREFIX + candidate.name())) return candidate;
+        }
+        return null;
+    }
+
+    private static ShortcutInfo shortcut(Activity activity, ShortcutManager manager, String token,
+                                         Action action, String shortLabel, String longLabel) {
+        // Bring the running page forward and hand it the action, instead of restarting it.
+        Intent intent = new Intent(ACTION_PREFIX + action.name(), null, activity, activity.getClass())
+                .putExtra(TOKEN_EXTRA, token)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return new ShortcutInfo.Builder(activity, action.name())
+                .setShortLabel(shortLabel)
+                .setLongLabel(longLabel)
+                .setIcon(icon(action, Math.min(manager.getIconMaxWidth(), manager.getIconMaxHeight())))
+                .setIntent(intent)
+                .build();
+    }
+
+    private static String token(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        String token = preferences.getString(TOKEN_KEY, null);
+        if (token != null) return token;
+
+        byte[] bytes = new byte[TOKEN_BYTES];
+        new SecureRandom().nextBytes(bytes);
+        StringBuilder hex = new StringBuilder();
+        for (byte value : bytes) hex.append(String.format("%02x", value));
+        token = hex.toString();
+        preferences.edit().putString(TOKEN_KEY, token).apply();
+        return token;
+    }
+
+    private static Icon icon(Action action, int size) {
+        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(ICON_BACKGROUND);
+
+        float scale = size / ICON_UNITS;
+        float origin = (ICON_UNITS - GLYPH_UNITS * GLYPH_SCALE) / 2;
+        canvas.scale(scale, scale);
+        canvas.translate(origin, origin);
+        canvas.scale(GLYPH_SCALE, GLYPH_SCALE);
+
+        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeWidth(GLYPH_STROKE);
+        stroke.setStrokeCap(Paint.Cap.ROUND);
+        stroke.setStrokeJoin(Paint.Join.ROUND);
+        stroke.setColor(ICON_GLYPH);
+        canvas.drawPath(glyph(action), stroke);
+
+        return Icon.createWithAdaptiveBitmap(bitmap);
+    }
+
+    private static Path glyph(Action action) {
+        Path path = new Path();
+        switch (action) {
+            case HOME:
+                path.moveTo(3, 11);
+                path.lineTo(12, 3.5f);
+                path.lineTo(21, 11);
+                path.moveTo(5.5f, 9.5f);
+                path.lineTo(5.5f, 20);
+                path.lineTo(18.5f, 20);
+                path.lineTo(18.5f, 9.5f);
+                path.moveTo(10, 20);
+                path.lineTo(10, 14);
+                path.lineTo(14, 14);
+                path.lineTo(14, 20);
+                break;
+            case RELOAD:
+                // An open circle, clockwise from four o'clock, ending in an arrowhead.
+                path.addArc(new RectF(5, 5, 19, 19), 30, 300);
+                path.moveTo(14.5f, 8.5f);
+                path.lineTo(18.1f, 8.5f);
+                path.lineTo(18.1f, 4.9f);
+                break;
+            case OPEN_IN_BROWSER:
+                path.moveTo(11, 5);
+                path.lineTo(5, 5);
+                path.lineTo(5, 19);
+                path.lineTo(19, 19);
+                path.lineTo(19, 13);
+                path.moveTo(11, 13);
+                path.lineTo(19, 5);
+                path.moveTo(14, 5);
+                path.lineTo(19, 5);
+                path.lineTo(19, 10);
+                break;
+        }
+        return path;
+    }
+}
