@@ -132,6 +132,12 @@ Keychain, not in that folder, so keep your Keychain too; Time Machine and Migrat
 Assistant carry both. Losing a signing key or its password prevents updates to its
 installed apps. Renaming a wrap preserves its Android identity.
 
+The app has no toolbar. The page fills the screen, and the system bars take the
+site's `theme-color` or, failing that, its background. Pull down from the top of a
+page to reload; a drag that scrolls the page, such as reading back through a chat,
+never does. Long-press the app's icon for **Home**, **Reload** and **Open in
+browser**.
+
 Android has a smaller feature set:
 
 - Boosts apply to the main page after loading. Before-page scripts are skipped;

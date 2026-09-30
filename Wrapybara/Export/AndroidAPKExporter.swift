@@ -9,7 +9,8 @@ enum AndroidAPKExporter {
     }
 
     private static let buildLock = NSLock()
-    private static let runtimeSources = ["AndroidSiteActivity", "AndroidNavigationPolicy"]
+    private static let runtimeSources = ["AndroidSiteActivity", "AndroidNavigationPolicy", "AndroidPageColors",
+                                         "AndroidPullGesture", "AndroidReloadIndicator", "AndroidShortcuts"]
     private static let recordsFolder = "AndroidExports"
 
     enum ExportError: LocalizedError {

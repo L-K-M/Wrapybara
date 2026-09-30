@@ -3,16 +3,21 @@ package ch.lkmc.wrapybara.runtime;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Canvas;
 import android.graphics.Insets;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.RenderProcessGoneDetail;
@@ -24,9 +29,9 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.Toolbar;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import java.io.ByteArrayOutputStream;
@@ -43,17 +48,49 @@ import org.json.JSONObject;
 public final class AndroidSiteActivity extends Activity {
     private static final String PREFERENCES = "site";
     private static final String LAST_PAGE = "lastPage";
-    private static final int MENU_HOME = 1;
-    private static final int MENU_RELOAD = 2;
-    private static final int MENU_BROWSER = 3;
+    private static final String STATUS_BAR_COLOR = "statusBarColor";
+    private static final String NAVIGATION_BAR_COLOR = "navigationBarColor";
+    private static final float PULL_TO_RELOAD_DP = 120;
+    // Stops the spinner if a reload never finishes, e.g. the page cancelled it
+    // from a beforeunload prompt.
+    private static final long RELOAD_INDICATOR_TIMEOUT_MS = 15000;
+    private static final int BLANK_HINT_ON_LIGHT = 0xFF5F6368;
+    private static final int BLANK_HINT_ON_DARK = 0xFFBDC1C6;
+    private static final float BLANK_HINT_PADDING_DP = 32;
 
-    private LinearLayout content;
+    // Reads the colours the page gives the system bars. All of it is page-controlled,
+    // so AndroidPageColors accepts only plain opaque colours.
+    private static final String PAGE_COLORS_SCRIPT = "(function () {"
+            + "var canvas = document.createElement('canvas').getContext('2d');"
+            + "function color(value) {"
+            + "if (!value || !CSS.supports('color', value)) return '';"
+            + "canvas.fillStyle = value; return String(canvas.fillStyle); }"
+            + "function background(element) {"
+            + "return element ? color(getComputedStyle(element).backgroundColor) : ''; }"
+            + "var theme = Array.prototype.filter.call("
+            + "document.querySelectorAll('meta[name=\"theme-color\"]'),"
+            + "function (meta) { return !meta.media || matchMedia(meta.media).matches; })[0];"
+            + "return [color(theme && theme.content), background(document.body),"
+            + "background(document.documentElement)]; })()";
+
+    // A new page is still empty when its navigation commits and would read as white,
+    // so reads that can run then wait until it has parsed.
+    private static final String PARSED_PAGE_COLORS_SCRIPT =
+            "document.readyState === 'loading' ? null : " + PAGE_COLORS_SCRIPT;
+
+    private SiteLayout content;
     private WebView webView;
+    private AndroidReloadIndicator reloadIndicator;
+    private AndroidPullGesture pull;
+    private TextView blankHint;
+    private AndroidPageColors barColors;
+    private final Runnable hideReloadIndicator = () -> reloadIndicator.hide();
     private AndroidNavigationPolicy navigation;
     private String homeURL;
     private final List<String> boosts = new ArrayList<>();
     private boolean restoreLastPage;
     private boolean mainFrameFailed;
+    private String failedURL;
     private AlertDialog errorDialog;
     private Api33BackNavigation backNavigation;
 
@@ -75,8 +112,42 @@ public final class AndroidSiteActivity extends Activity {
         }
 
         createContent();
+        // Keep the last page's colours through rotation instead of flashing the default.
+        if (state != null && state.containsKey(STATUS_BAR_COLOR)) {
+            applyBarColors(new AndroidPageColors(state.getInt(STATUS_BAR_COLOR),
+                    state.getInt(NAVIGATION_BAR_COLOR)));
+        }
         createWebView();
-        if (state == null || webView.restoreState(state) == null) webView.loadUrl(startURL());
+        // Published shortcuts persist; a cold start is enough to refresh them.
+        if (state == null) AndroidShortcuts.publish(this);
+        if (state != null && webView.restoreState(state) != null) return;
+
+        // A recreated activity still holds the intent that first launched it.
+        AndroidShortcuts.Action shortcut = state == null
+                ? AndroidShortcuts.requested(this, getIntent()) : null;
+        webView.loadUrl(shortcut == AndroidShortcuts.Action.HOME ? homeURL : startURL());
+        if (shortcut == AndroidShortcuts.Action.OPEN_IN_BROWSER) openExternally(startURL());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        AndroidShortcuts.Action shortcut = AndroidShortcuts.requested(this, intent);
+        // No content means the configuration failed and the app is closing.
+        if (shortcut == null || content == null) return;
+
+        switch (shortcut) {
+            case HOME:
+                loadPage(homeURL);
+                break;
+            case RELOAD:
+                reload();
+                break;
+            case OPEN_IN_BROWSER:
+                String current = webView == null ? null : webView.getUrl();
+                openExternally(AndroidNavigationPolicy.isWebURL(current) ? current : startURL());
+                break;
+        }
     }
 
     private void readConfiguration() throws IOException, JSONException {
@@ -117,8 +188,7 @@ public final class AndroidSiteActivity extends Activity {
     }
 
     private void createContent() {
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
+        content = new SiteLayout(this);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         // Consume handled insets so WebView does not add the same safe area twice.
@@ -134,15 +204,90 @@ public final class AndroidSiteActivity extends Activity {
             content.setFitsSystemWindows(true);
         }
 
-        Toolbar toolbar = new Toolbar(this);
-        content.addView(toolbar, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        float density = getResources().getDisplayMetrics().density;
+        blankHint = new TextView(this);
+        blankHint.setText("This page could not be loaded. Pull down to try again.");
+        blankHint.setGravity(Gravity.CENTER);
+        int padding = Math.round(BLANK_HINT_PADDING_DP * density);
+        blankHint.setPadding(padding, padding, padding, padding);
+        blankHint.setVisibility(View.GONE);
+        content.addView(blankHint, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        pull = new AndroidPullGesture(PULL_TO_RELOAD_DP * density);
+        reloadIndicator = new AndroidReloadIndicator(this);
+        content.addView(reloadIndicator, new FrameLayout.LayoutParams(
+                reloadIndicator.size(), reloadIndicator.size(), Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+
+        // With the page hidden after a failed load, the blank area takes the pull instead.
+        content.setOnTouchListener((view, event) -> {
+            if (webView != null && webView.getVisibility() == View.VISIBLE) return false;
+
+            trackPull(event);
+            // Nothing here scrolls, so every drag starts at the top.
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) pull.overscrolledPastTop();
+            return true;
+        });
+
         setContentView(content);
-        setActionBar(toolbar);
+        // The page's own colours stand in for the bars; the system's scrim would not match.
+        // Only after setContentView: installing the decor resets this from the theme.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        applyBarColors(AndroidPageColors.choose(null, null, null));
+    }
+
+    private void applyBarColors(AndroidPageColors colors) {
+        barColors = colors;
+        content.setBarColors(colors.statusBar, colors.navigationBar);
+
+        // Android 15 ignores bar colours and draws the app under transparent bars,
+        // where SiteLayout paints the same colours instead.
+        Window window = getWindow();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            window.setStatusBarColor(colors.statusBar);
+            window.setNavigationBarColor(colors.navigationBar);
+        }
+
+        boolean lightStatusBar = AndroidPageColors.isLight(colors.statusBar);
+        boolean lightNavigationBar = AndroidPageColors.isLight(colors.navigationBar);
+        // The hint sits on the same colour as the navigation bar when the page is hidden.
+        blankHint.setTextColor(lightNavigationBar ? BLANK_HINT_ON_LIGHT : BLANK_HINT_ON_DARK);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            int appearance = (lightStatusBar ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0)
+                    | (lightNavigationBar ? WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0);
+            window.getInsetsController().setSystemBarsAppearance(appearance, light);
+            return;
+        }
+
+        View decor = window.getDecorView();
+        int flags = decor.getSystemUiVisibility()
+                & ~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        if (lightStatusBar) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (lightNavigationBar) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        decor.setSystemUiVisibility(flags);
+    }
+
+    private void readPageColors(WebView view, String script) {
+        view.evaluateJavascript(script, result -> {
+            // "null" is a page still parsing; a later read will colour the bars for it.
+            if (view != webView || mainFrameFailed || "null".equals(result)) return;
+
+            try {
+                JSONArray values = new JSONArray(result);
+                applyBarColors(AndroidPageColors.choose(
+                        values.optString(0), values.optString(1), values.optString(2)));
+            } catch (JSONException error) {
+                // The page broke an API the probe uses; keep the current colours.
+            }
+        });
     }
 
     private void createWebView() {
-        webView = new WebView(this);
+        webView = new SiteWebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -163,8 +308,48 @@ public final class AndroidSiteActivity extends Activity {
         webView.setWebViewClient(new SiteClient());
         webView.setWebChromeClient(new WebChromeClient());
         webView.setDownloadListener((url, userAgent, disposition, mime, length) -> offerDownload(url));
-        content.addView(webView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        // Watch the drag without taking it: the page still receives every touch.
+        webView.setOnTouchListener((view, event) -> {
+            trackPull(event);
+            return false;
+        });
+        content.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    private void trackPull(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                pull.pressed(event.getY());
+                break;
+            case MotionEvent.ACTION_MOVE:
+                pull.moved(event.getY());
+                break;
+            case MotionEvent.ACTION_POINTER_DOWN:
+            case MotionEvent.ACTION_CANCEL:
+                pull.interrupted();
+                break;
+            case MotionEvent.ACTION_UP:
+                if (pull.released()) reload();
+                break;
+            default:
+                return;
+        }
+        reloadIndicator.follow(pull.progress());
+    }
+
+    private void reload() {
+        reloadIndicator.spin();
+        content.removeCallbacks(hideReloadIndicator);
+        content.postDelayed(hideReloadIndicator, RELOAD_INDICATOR_TIMEOUT_MS);
+
+        if (webView == null || mainFrameFailed) loadPage(failedURL != null ? failedURL : startURL());
+        else webView.reload();
+    }
+
+    private void finishReload() {
+        content.removeCallbacks(hideReloadIndicator);
+        reloadIndicator.hide();
     }
 
     private String startURL() {
@@ -196,33 +381,6 @@ public final class AndroidSiteActivity extends Activity {
         webView.loadUrl(url);
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(Menu.NONE, MENU_HOME, Menu.NONE, "Home");
-        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, "Reload");
-        menu.add(Menu.NONE, MENU_BROWSER, Menu.NONE, "Open in browser");
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case MENU_HOME:
-                loadPage(homeURL);
-                return true;
-            case MENU_RELOAD:
-                if (webView == null) loadPage(startURL());
-                else webView.reload();
-                return true;
-            case MENU_BROWSER:
-                String current = webView == null ? homeURL : webView.getUrl();
-                if (AndroidNavigationPolicy.isWebURL(current)) openExternally(current);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
-        }
-    }
-
     private void openExternally(String url) {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         intent.addCategory(Intent.CATEGORY_BROWSABLE);
@@ -250,11 +408,14 @@ public final class AndroidSiteActivity extends Activity {
 
     private void showPageError(String url, String description) {
         mainFrameFailed = true;
+        String retryURL = AndroidNavigationPolicy.isWebURL(url) ? url : homeURL;
+        failedURL = retryURL;
+        finishReload();
         if (webView != null) webView.setVisibility(View.INVISIBLE);
+        blankHint.setVisibility(View.VISIBLE);
         if (isFinishing() || isDestroyed()) return;
         if (errorDialog != null) errorDialog.dismiss();
 
-        String retryURL = AndroidNavigationPolicy.isWebURL(url) ? url : homeURL;
         errorDialog = new AlertDialog.Builder(this)
                 .setTitle("Could not load page")
                 .setMessage(description)
@@ -308,11 +469,16 @@ public final class AndroidSiteActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         if (webView != null && !mainFrameFailed) webView.saveState(state);
+        if (barColors == null) return;
+
+        state.putInt(STATUS_BAR_COLOR, barColors.statusBar);
+        state.putInt(NAVIGATION_BAR_COLOR, barColors.navigationBar);
     }
 
     @Override
     protected void onDestroy() {
         if (errorDialog != null) errorDialog.dismiss();
+        if (content != null) finishReload();
         destroyWebView();
         super.onDestroy();
     }
@@ -351,23 +517,37 @@ public final class AndroidSiteActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             mainFrameFailed = false;
+            failedURL = null;
             view.setVisibility(View.VISIBLE);
+            blankHint.setVisibility(View.GONE);
             if (errorDialog != null) errorDialog.dismiss();
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             updateBackCallback();
+            finishReload();
             if (mainFrameFailed || !AndroidNavigationPolicy.isWebURL(url)
                     || !url.equals(view.getUrl())) return;
 
             rememberPage();
             for (String source : boosts) view.evaluateJavascript(source, null);
+            // After the Boosts, so a Boost that recolours the page recolours the bars.
+            readPageColors(view, PAGE_COLORS_SCRIPT);
+        }
+
+        @Override
+        public void onPageCommitVisible(WebView view, String url) {
+            // The new page is about to paint. Waiting for onPageFinished would leave the
+            // last page's colours around it until its slowest image had loaded.
+            if (!mainFrameFailed) readPageColors(view, PAGE_COLORS_SCRIPT);
         }
 
         @Override
         public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
             updateBackCallback();
+            // Single-page apps change pages without loading; their colours may change too.
+            if (!mainFrameFailed) readPageColors(view, PARSED_PAGE_COLORS_SCRIPT);
         }
 
         @Override
@@ -403,6 +583,61 @@ public final class AndroidSiteActivity extends Activity {
             destroyWebView();
             showPageError(url, "The page stopped. Try loading it again.");
             return true;
+        }
+    }
+
+    /**
+     * Reports drags past the page top to the pull gesture. WebView hands this method
+     * only the scroll the page could not use, so it fires at the top of the page
+     * and never while an inner element, such as a chat's history, is scrolling.
+     */
+    private final class SiteWebView extends WebView {
+        SiteWebView(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected boolean overScrollBy(int deltaX, int deltaY, int scrollX, int scrollY,
+                                       int scrollRangeX, int scrollRangeY, int maxOverScrollX,
+                                       int maxOverScrollY, boolean isTouchEvent) {
+            if (deltaY < 0 && scrollY <= 0) {
+                pull.overscrolledPastTop();
+                reloadIndicator.follow(pull.progress());
+            }
+            return super.overScrollBy(deltaX, deltaY, scrollX, scrollY, scrollRangeX,
+                    scrollRangeY, maxOverScrollX, maxOverScrollY, isTouchEvent);
+        }
+
+        @Override
+        protected void onScrollChanged(int left, int top, int oldLeft, int oldTop) {
+            super.onScrollChanged(left, top, oldLeft, oldTop);
+            if (top == oldTop) return;
+
+            pull.interrupted();
+            reloadIndicator.follow(0);
+        }
+    }
+
+    /** Paints the strips under the system bars, which Android 15 leaves transparent. */
+    private static final class SiteLayout extends FrameLayout {
+        private final Paint statusBar = new Paint();
+        private final Paint surround = new Paint();
+
+        SiteLayout(Context context) {
+            super(context);
+            setWillNotDraw(false);
+        }
+
+        void setBarColors(int statusBarColor, int surroundColor) {
+            statusBar.setColor(statusBarColor);
+            surround.setColor(surroundColor);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            canvas.drawRect(0, 0, getWidth(), getPaddingTop(), statusBar);
+            canvas.drawRect(0, getPaddingTop(), getWidth(), getHeight(), surround);
         }
     }
 

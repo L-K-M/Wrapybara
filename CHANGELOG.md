@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Exported Android apps drop their toolbar. The page fills the screen under
+  system bars coloured to match it; pull down from the top of a page to reload,
+  and long-press the app icon for Home, Reload and Open in browser.
 - A site app's page keeps updating while its window is covered by another
   app, miniaturised, hidden with ⌘H or parked on a background tab, instead of
   stalling until a reload. On macOS 14 and later it also opts out of

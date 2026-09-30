@@ -1,0 +1,60 @@
+package ch.lkmc.wrapybara.runtime;
+
+/**
+ * Decides when a drag becomes a reload.
+ *
+ * A pull arms only when WebView reports a drag past the top that the page could
+ * not scroll. Chrome's own pull-to-refresh uses the same signal. Checking
+ * whether the WebView can scroll up is not enough: an app-like page scrolls an
+ * inner element, so the WebView always looks "at the top" and every upward read
+ * through a chat's history would reload it.
+ */
+final class AndroidPullGesture {
+    private final float distanceToReload;
+    private boolean touching;
+    private boolean armed;
+    private float anchorY;
+    private float fingerY;
+
+    AndroidPullGesture(float distanceToReload) {
+        this.distanceToReload = distanceToReload;
+    }
+
+    void pressed(float y) {
+        touching = true;
+        armed = false;
+        fingerY = y;
+    }
+
+    void moved(float y) {
+        fingerY = y;
+    }
+
+    /** The page could not use a drag past its top. Measures the pull from here. */
+    void overscrolledPastTop() {
+        if (!touching || armed) return;
+
+        armed = true;
+        anchorY = fingerY;
+    }
+
+    /** The page scrolled or a second finger landed: this drag is not a pull. */
+    void interrupted() {
+        touching = false;
+        armed = false;
+    }
+
+    /** Ends the drag; true when it was pulled far enough to reload. */
+    boolean released() {
+        boolean reload = progress() >= 1;
+        interrupted();
+        return reload;
+    }
+
+    /** How far the pull has come, from 0 to 1 at the reload distance. */
+    float progress() {
+        if (!armed) return 0;
+
+        return Math.min(1f, Math.max(0f, fingerY - anchorY) / distanceToReload);
+    }
+}

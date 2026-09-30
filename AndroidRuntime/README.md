@@ -14,7 +14,7 @@ links leave the app; redirects stay inside for sign-in. Native handoff supports
 `mailto`, `tel`, `sms`, and `geo`. File access, content access, mixed content,
 unverified TLS connections, and native JavaScript bridges are disabled.
 
-Run the pure navigation tests with a JDK installed:
+Run the pure navigation, page colour and pull gesture tests with a JDK installed:
 
 ```bash
 bash Tools/test-android-runtime.sh
@@ -24,25 +24,36 @@ bash Tools/test-android-runtime.sh
 
 Use Android 8 and Android 15 or later, with a current Android System WebView.
 
-1. Install an exported APK. Check its name, icon, home page, keyboard, rotation,
-   status/navigation bar insets, Home, Reload, and Back.
-2. Sign in, force-stop, and reopen. Check the session and last page survive.
+1. Install an exported APK. Check its name, icon, home page, keyboard, rotation
+   and Back. There must be no toolbar. The status and navigation bars must take
+   the page's `theme-color` or background, with legible icons, on Android 15
+   with 3-button navigation too (no grey scrim), and keep them through rotation.
+   Follow a link between two dark pages of a multi-page site: the bars must not
+   flash white while the second page loads.
+2. Pull down from the top of a document page: it must reload. On a chat-like page
+   that scrolls an inner list, dragging back through the history must never
+   reload; a new drag with the list at its top, or from the site's header, must.
+   Long-press the launcher icon: Home, Reload and Open in browser must act on the
+   running page without restarting it, and Home must open the home page from a
+   cold start.
+3. Sign in, force-stop, and reopen. Check the session and last page survive.
    Install a rebuilt APK over it; check the same session remains. Re-export with
    the last page's host no longer allowed: reopening must land on the home page.
-3. Test an SSO redirect through another host. Check external links open in the
+4. Test an SSO redirect through another host. Check external links open in the
    browser, allowed hosts stay inside, and `target="_blank"` works in the current
    view. Providers that reject embedded browsers remain unsupported.
-4. Test allowed native links, plus `intent:`, `file:`, and `content:` links.
+5. Test allowed native links, plus `intent:`, `file:`, and `content:` links.
    Only a deliberate supported link should launch another app.
-5. Test Boost CSS and trusted JavaScript, including SPA navigation, and Boost CSS
+6. Test Boost CSS and trusted JavaScript, including SPA navigation, and Boost CSS
    on a site whose Content-Security-Policy `style-src` omits `'unsafe-inline'`
    (GitHub will do): the CSS must still apply. Disconnect
    networking and reload: the native error must appear without Boosts. Reconnect
-   and choose Try again: the site and Boosts must return. Repeat with an invalid
-   TLS certificate and a main-frame HTTP error.
-6. Hide and restore the app; check site visibility events and normal Android
+   and choose Try again: the site and Boosts must return. Fail it again and choose
+   Close: the blank page must say to pull down, and pulling must retry. Repeat
+   with an invalid TLS certificate and a main-frame HTTP error.
+7. Hide and restore the app; check site visibility events and normal Android
    lifecycle behavior. There is no continuous-background-update guarantee.
-7. Test a download. The browser prompt explains that its session is separate.
+8. Test a download. The browser prompt explains that its session is separate.
 
 Device checks require an emulator or phone; JVM tests do not verify WebView,
 sign-in, Android lifecycle, or installation.

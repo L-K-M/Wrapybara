@@ -1,0 +1,95 @@
+package ch.lkmc.wrapybara.runtime;
+
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.drawable.GradientDrawable;
+import android.view.View;
+import android.view.animation.LinearInterpolator;
+
+/** The circle that follows a pull down from the page top and spins while it reloads. */
+final class AndroidReloadIndicator extends View {
+    private static final float SIZE_DP = 40;
+    private static final float REST_DP = 24;
+    private static final float STROKE_DP = 3;
+    private static final float ELEVATION_DP = 6;
+    private static final float FULL_SWEEP = 270;
+    private static final int ARC_COLOR = 0xFF3C4043;
+    private static final int PARTIAL_ALPHA = 110;
+    private static final long SPIN_MILLISECONDS = 900;
+
+    private final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF arcBounds = new RectF();
+    private final ObjectAnimator spin = ObjectAnimator.ofFloat(this, View.ROTATION, 0, 360);
+    private final float density;
+    private float progress;
+
+    AndroidReloadIndicator(Context context) {
+        super(context);
+        density = getResources().getDisplayMetrics().density;
+
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(Color.WHITE);
+        setBackground(circle);
+        setElevation(ELEVATION_DP * density);
+
+        arc.setStyle(Paint.Style.STROKE);
+        arc.setStrokeWidth(STROKE_DP * density);
+        arc.setStrokeCap(Paint.Cap.ROUND);
+        arc.setColor(ARC_COLOR);
+
+        spin.setDuration(SPIN_MILLISECONDS);
+        spin.setRepeatCount(ValueAnimator.INFINITE);
+        spin.setInterpolator(new LinearInterpolator());
+        setVisibility(INVISIBLE);
+    }
+
+    int size() {
+        return Math.round(SIZE_DP * density);
+    }
+
+    /** Follows a pull; at 1 the arc is whole and dark, meaning "let go to reload". */
+    void follow(float pullProgress) {
+        if (spin.isStarted()) return;
+
+        progress = pullProgress;
+        setVisibility(progress > 0 ? VISIBLE : INVISIBLE);
+        setTranslationY(offset(progress));
+        setRotation(progress * FULL_SWEEP);
+        arc.setAlpha(progress >= 1 ? 255 : PARTIAL_ALPHA);
+        invalidate();
+    }
+
+    void spin() {
+        progress = 1;
+        arc.setAlpha(255);
+        setTranslationY(offset(1));
+        setVisibility(VISIBLE);
+        if (!spin.isStarted()) spin.start();
+    }
+
+    void hide() {
+        spin.cancel();
+        follow(0);
+    }
+
+    // Starts hidden above the page top (the parent clips to its padding) and rests
+    // a little below it when the pull is complete.
+    private float offset(float pullProgress) {
+        float size = size();
+        return -size + pullProgress * (size + REST_DP * density);
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        float inset = getWidth() * 0.3f;
+        arcBounds.set(inset, inset, getWidth() - inset, getHeight() - inset);
+        float sweep = spin.isStarted() ? FULL_SWEEP : progress * FULL_SWEEP;
+        canvas.drawArc(arcBounds, -90, sweep, false, arc);
+    }
+}
