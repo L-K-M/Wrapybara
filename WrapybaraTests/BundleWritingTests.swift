@@ -9,7 +9,7 @@ final class BundleWritingTests: XCTestCase {
     private func wrap(_ urlString: String = "https://claude.ai", name: String = "Claude") -> Wrap {
         Wrap(name: name,
              homeURL: URL(string: urlString)!,
-             bundleIdentifier: "com.wrapybara.site.ai.claude")
+             bundleIdentifier: "ch.lkmc.Wrapybara.site.ai.claude")
     }
 
     private func plist(_ wrap: Wrap) -> [String: Any] {
@@ -21,7 +21,7 @@ final class BundleWritingTests: XCTestCase {
 
     func testCarriesTheKeysLaunchServicesNeeds() {
         let info = plist(wrap())
-        XCTAssertEqual(info["CFBundleIdentifier"] as? String, "com.wrapybara.site.ai.claude")
+        XCTAssertEqual(info["CFBundleIdentifier"] as? String, "ch.lkmc.Wrapybara.site.ai.claude")
         XCTAssertEqual(info["CFBundleExecutable"] as? String, "Claude")
         XCTAssertEqual(info["CFBundlePackageType"] as? String, "APPL")
         XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.2.0")

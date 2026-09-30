@@ -14,7 +14,7 @@ Everything is on your Mac, in files you can read.
 | `~/Library/Application Support/Wrapybara/library.json` | Your wraps: name, address, bundle identifier, behaviour settings, boosts (including any CSS and JavaScript you wrote), and where each built app is on disk. |
 | `~/Library/Application Support/Wrapybara/Runtime/<uuid>.json` | One resolved configuration per wrap. This is the copy a running app reads, and it duplicates that wrap's boosts. |
 | `~/Library/Application Support/Wrapybara/Icons/<uuid>.png` | The composed artwork for each wrap. |
-| `~/Library/Preferences/com.wrapybara.Wrapybara.plist` | Where to build apps, the signing identity you chose, icon style, and the after-build toggles. |
+| `~/Library/Preferences/ch.lkmc.Wrapybara.plist` | Where to build apps, the signing identity you chose, icon style, and the after-build toggles. |
 
 These are plain JSON and PNG. Delete the folder and Wrapybara forgets everything;
 the apps it already built keep working, because each one carries a copy of its own

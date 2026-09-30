@@ -40,7 +40,7 @@ struct AndroidExportPlan {
 
     /// UUID identity survives renaming and does not alter the Mac bundle identifier.
     static func packageIdentifier(for id: UUID) -> String {
-        "com.wrapybara.site.w" + id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        "ch.lkmc.wrapybara.site.w" + id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
     }
 
     var packageIdentifier: String { Self.packageIdentifier(for: configuration.wrap.id) }
@@ -64,7 +64,7 @@ struct AndroidExportPlan {
                 android:theme="@android:style/Theme.Material.Light.NoActionBar"
                 android:allowBackup="false" android:usesCleartextTraffic="\(usesCleartextTraffic)"
                 android:supportsRtl="true">
-                <activity android:name="com.wrapybara.runtime.AndroidSiteActivity"
+                <activity android:name="ch.lkmc.Wrapybara.runtime.AndroidSiteActivity"
                     android:exported="true" android:windowSoftInputMode="adjustResize">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />

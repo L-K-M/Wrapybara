@@ -1,9 +1,9 @@
-package com.wrapybara.runtime;
+package ch.lkmc.Wrapybara.runtime;
 
 import java.util.Arrays;
-import static com.wrapybara.runtime.AndroidNavigationPolicy.Decision.*;
-import static com.wrapybara.runtime.AndroidNavigationPolicy.Trigger.*;
-import static com.wrapybara.runtime.AndroidNavigationPolicy.Frame.*;
+import static ch.lkmc.Wrapybara.runtime.AndroidNavigationPolicy.Decision.*;
+import static ch.lkmc.Wrapybara.runtime.AndroidNavigationPolicy.Trigger.*;
+import static ch.lkmc.Wrapybara.runtime.AndroidNavigationPolicy.Frame.*;
 
 public final class AndroidNavigationPolicyTest {
     public static void main(String[] arguments) {

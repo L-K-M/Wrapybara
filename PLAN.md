@@ -213,7 +213,7 @@ aligns the APK, signs it and verifies the signature before publication.
 Package identity derives from the immutable wrap UUID, independently of the Mac
 bundle identifier. `AndroidSigning/<package>/` retains the local PKCS#12 key. Its
 password lives apart from it in the login Keychain (service
-`com.wrapybara.android-signing`, one item per package, never replaced), and
+`ch.lkmc.Wrapybara.android-signing`, one item per package, never replaced), and
 `keytool` and `apksigner` read it from an environment variable rather than a file
 or an argument, so a synced or unencrypted copy of the folder can't sign an update.
 `AndroidExports/<package>.json` retains increasing version codes. Back up the folder

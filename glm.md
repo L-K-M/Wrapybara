@@ -407,7 +407,7 @@ and `UpdateChecker.isRunningTests` are three copies of the same helper. One
 `LaunchMode.isRunningTests` (or a tiny `Common/TestSupport.swift`) would do.
 
 ### 6.5 P3 — magic strings for handler names/identifiers are centralized
-(`BoostScripts.Handler`) — good — but `com.wrapybara.Wrapybara` in
+(`BoostScripts.Handler`) — good — but `ch.lkmc.Wrapybara` in
 `SiteAppDelegate.openWrapybara` and the tabbing identifiers are literals that should
 live next to `InfoPlistBuilder`/`BundleIdentifierGenerator`.
 

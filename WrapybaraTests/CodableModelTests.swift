@@ -31,7 +31,7 @@ final class CodableModelTests: XCTestCase {
     func testWrapRoundTrips() throws {
         var wrap = Wrap(name: "Claude",
                         homeURL: URL(string: "https://claude.ai")!,
-                        bundleIdentifier: "com.wrapybara.site.ai.claude",
+                        bundleIdentifier: "ch.lkmc.Wrapybara.site.ai.claude",
                         createdAt: fixedDate, updatedAt: fixedDate)
         wrap.behavior.chrome = .titleBarOnly
         wrap.behavior.additionalInAppHosts = ["accounts.example.com"]

@@ -7,7 +7,7 @@ final class AndroidToolchainTests: XCTestCase {
     private var sdk: URL { directory.appendingPathComponent("Android SDK") }
     private var javaHome: URL { directory.appendingPathComponent("Java Home") }
     private var signingDirectory: URL { directory.appendingPathComponent("signing") }
-    private let packageIdentifier = "com.wrapybara.test"
+    private let packageIdentifier = "ch.lkmc.Wrapybara.test"
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -228,7 +228,7 @@ final class AndroidToolchainTests: XCTestCase {
     func testPackageIdentifierCannotEscapeSigningDirectory() throws {
         let toolchain = try AndroidToolchain.discover(sdkDirectory: sdk, javaHome: javaHome)
         let passwords = AndroidSigningPasswordStore.inMemory()
-        for identifier in ["../escape", "../../escape", "com.wrapybara.test/../../escape"] {
+        for identifier in ["../escape", "../../escape", "ch.lkmc.Wrapybara.test/../../escape"] {
             XCTAssertThrowsError(try AndroidSigningIdentity.loadOrCreate(in: signingDirectory,
                                                                          packageIdentifier: identifier,
                                                                          toolchain: toolchain,

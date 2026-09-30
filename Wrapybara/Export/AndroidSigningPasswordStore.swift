@@ -52,7 +52,7 @@ struct AndroidSigningPasswordStore {
 extension AndroidSigningPasswordStore {
     /// One service for every package. A literal, never anything from `Bundle.main`,
     /// so every copy of Wrapybara, however it's named or signed, finds the same items.
-    private static let keychainService = "com.wrapybara.android-signing"
+    private static let keychainService = "ch.lkmc.Wrapybara.android-signing"
 
     /// The login Keychain. macOS may ask once before a re-signed Wrapybara reads it.
     static let keychain = AndroidSigningPasswordStore(

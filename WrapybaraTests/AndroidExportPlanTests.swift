@@ -75,7 +75,7 @@ final class AndroidExportPlanTests: XCTestCase {
     func testRuntimeSourcesShipWithBuilder() throws {
         for name in ["AndroidSiteActivity", "AndroidNavigationPolicy"] {
             let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "java.txt"))
-            XCTAssertTrue(try String(contentsOf: url).contains("package com.wrapybara.runtime;"))
+            XCTAssertTrue(try String(contentsOf: url).contains("package ch.lkmc.Wrapybara.runtime;"))
         }
     }
 }

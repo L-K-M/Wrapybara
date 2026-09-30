@@ -68,7 +68,7 @@ final class ExportNamingTests: XCTestCase {
 
     func testIdentifierReversesHostLabels() {
         XCTAssertEqual(BundleIdentifierGenerator.identifier(forHost: "claude.ai", name: "Claude"),
-                       "com.wrapybara.site.ai.claude")
+                       "ch.lkmc.Wrapybara.site.ai.claude")
     }
 
     func testIdentifierAppendsADistinctName() {
@@ -76,12 +76,12 @@ final class ExportNamingTests: XCTestCase {
         // cookie store and one login.
         XCTAssertEqual(
             BundleIdentifierGenerator.identifier(forHost: "mail.google.com", name: "Gmail Work"),
-            "com.wrapybara.site.com.google.mail.gmail-work")
+            "ch.lkmc.Wrapybara.site.com.google.mail.gmail-work")
     }
 
     func testIdentifierDropsANameThatRepeatsTheSiteLabel() {
         XCTAssertEqual(BundleIdentifierGenerator.identifier(forHost: "claude.ai", name: "claude"),
-                       "com.wrapybara.site.ai.claude")
+                       "ch.lkmc.Wrapybara.site.ai.claude")
     }
 
     func testIdentifierFoldsDiacriticsRatherThanDroppingThem() {
@@ -105,7 +105,7 @@ final class ExportNamingTests: XCTestCase {
         // Colliding with Wrapybara itself would make Launch Services open the wrong app.
         let identifier = BundleIdentifierGenerator.identifier(forHost: "wrapybara.com",
                                                              name: "Wrapybara")
-        XCTAssertNotEqual(identifier, "com.wrapybara.Wrapybara")
+        XCTAssertNotEqual(identifier, "ch.lkmc.Wrapybara")
         XCTAssertTrue(identifier.hasPrefix(BundleIdentifierGenerator.prefix))
     }
 
