@@ -8,4 +8,4 @@ trap 'rm -rf "$test_dir"' EXIT
 cp "$repo_root/Wrapybara/Export/AndroidNavigationPolicy.java.txt" "$test_dir/AndroidNavigationPolicy.java"
 javac -d "$test_dir" "$test_dir/AndroidNavigationPolicy.java" \
     "$repo_root/AndroidRuntime/AndroidNavigationPolicyTest.java"
-java -cp "$test_dir" ch.lkmc.Wrapybara.runtime.AndroidNavigationPolicyTest
+java -cp "$test_dir" ch.lkmc.wrapybara.runtime.AndroidNavigationPolicyTest

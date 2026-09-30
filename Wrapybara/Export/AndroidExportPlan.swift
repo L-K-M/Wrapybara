@@ -39,6 +39,8 @@ struct AndroidExportPlan {
     }
 
     /// UUID identity survives renaming and does not alter the Mac bundle identifier.
+    /// Lowercase `wrapybara` deliberately: Android package names are lowercase by
+    /// convention, unlike the Mac prefix `ch.lkmc.Wrapybara.site`.
     static func packageIdentifier(for id: UUID) -> String {
         "ch.lkmc.wrapybara.site.w" + id.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
     }
@@ -64,7 +66,7 @@ struct AndroidExportPlan {
                 android:theme="@android:style/Theme.Material.Light.NoActionBar"
                 android:allowBackup="false" android:usesCleartextTraffic="\(usesCleartextTraffic)"
                 android:supportsRtl="true">
-                <activity android:name="ch.lkmc.Wrapybara.runtime.AndroidSiteActivity"
+                <activity android:name="ch.lkmc.wrapybara.runtime.AndroidSiteActivity"
                     android:exported="true" android:windowSoftInputMode="adjustResize">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />

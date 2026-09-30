@@ -103,7 +103,7 @@ enum AndroidBuildSmoke {
 
     private static func writeFixture(to directory: URL, repository: URL,
                                      package: String, version: Int) throws {
-        for path in ["res/drawable", "res/values", "assets", "src/com/wrapybara/runtime"] {
+        for path in ["res/drawable", "res/values", "assets", "src/ch/lkmc/wrapybara/runtime"] {
             try FileManager.default.createDirectory(at: directory.appendingPathComponent(path),
                                                     withIntermediateDirectories: true)
         }
@@ -115,7 +115,7 @@ enum AndroidBuildSmoke {
           <uses-permission android:name="android.permission.INTERNET" />
           <application android:label="@string/app_name" android:icon="@drawable/icon"
               android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false">
-            <activity android:name="ch.lkmc.Wrapybara.runtime.AndroidSiteActivity" android:exported="true">
+            <activity android:name="ch.lkmc.wrapybara.runtime.AndroidSiteActivity" android:exported="true">
               <intent-filter><action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             </activity>
@@ -135,7 +135,7 @@ enum AndroidBuildSmoke {
         for name in ["AndroidSiteActivity", "AndroidNavigationPolicy"] {
             try FileManager.default.copyItem(
                 at: repository.appendingPathComponent("Wrapybara/Export/\(name).java.txt"),
-                to: directory.appendingPathComponent("src/com/wrapybara/runtime/\(name).java"))
+                to: directory.appendingPathComponent("src/ch/lkmc/wrapybara/runtime/\(name).java"))
         }
     }
 }

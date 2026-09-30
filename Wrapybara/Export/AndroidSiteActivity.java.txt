@@ -1,4 +1,4 @@
-package ch.lkmc.Wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 import android.app.Activity;
 import android.app.AlertDialog;

@@ -125,7 +125,7 @@ enum AndroidAPKExporter {
 
     private static func writeProject(_ plan: AndroidExportPlan, iconPNG: Data,
                                      sources: [(String, URL)], to directory: URL) throws {
-        for path in ["res/drawable", "res/values", "assets", "src/com/wrapybara/runtime"] {
+        for path in ["res/drawable", "res/values", "assets", "src/ch/lkmc/wrapybara/runtime"] {
             try FileManager.default.createDirectory(at: directory.appendingPathComponent(path),
                                                     withIntermediateDirectories: true)
         }
@@ -140,7 +140,7 @@ enum AndroidAPKExporter {
             .write(to: directory.appendingPathComponent("assets/boosts.json"))
         for (name, source) in sources {
             try FileManager.default.copyItem(at: source,
-                to: directory.appendingPathComponent("src/com/wrapybara/runtime/\(name).java"))
+                to: directory.appendingPathComponent("src/ch/lkmc/wrapybara/runtime/\(name).java"))
         }
     }
 }
