@@ -1,4 +1,4 @@
-package com.wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 /**
  * Decides when a drag becomes a reload.

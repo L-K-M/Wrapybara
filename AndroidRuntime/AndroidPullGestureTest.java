@@ -1,4 +1,4 @@
-package com.wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 public final class AndroidPullGestureTest {
     private static final float DISTANCE = 100;

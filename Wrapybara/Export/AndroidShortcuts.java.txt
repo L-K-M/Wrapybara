@@ -1,4 +1,4 @@
-package com.wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 import android.app.Activity;
 import android.content.Context;
@@ -29,7 +29,7 @@ import java.util.List;
 final class AndroidShortcuts {
     enum Action { HOME, RELOAD, OPEN_IN_BROWSER }
 
-    private static final String ACTION_PREFIX = "com.wrapybara.runtime.shortcut.";
+    private static final String ACTION_PREFIX = "ch.lkmc.wrapybara.runtime.shortcut.";
     private static final String TOKEN_EXTRA = ACTION_PREFIX + "token";
     private static final String PREFERENCES = "shortcuts";
     private static final String TOKEN_KEY = "token";

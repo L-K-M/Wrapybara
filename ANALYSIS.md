@@ -428,7 +428,7 @@ would pay rent.
 
 ### P3 — remaining magic strings
 Handler names are centralized (`BoostScripts.Handler`) — good — but
-`com.wrapybara.Wrapybara` in `SiteAppDelegate.openWrapybara` and the toolbar/tabbing
+`ch.lkmc.Wrapybara` in `SiteAppDelegate.openWrapybara` and the toolbar/tabbing
 identifiers are literals that belong next to `InfoPlistBuilder` /
 `BundleIdentifierGenerator`.
 

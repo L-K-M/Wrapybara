@@ -78,7 +78,7 @@ enum ProcessRunner {
         var outData = Data()
         var errData = Data()
         let group = DispatchGroup()
-        let queue = DispatchQueue(label: "com.wrapybara.ProcessRunner", attributes: .concurrent)
+        let queue = DispatchQueue(label: "ch.lkmc.Wrapybara.ProcessRunner", attributes: .concurrent)
         let lock = NSLock()
 
         for (handle, isStandardOutput) in [(outPipe.fileHandleForReading, true),

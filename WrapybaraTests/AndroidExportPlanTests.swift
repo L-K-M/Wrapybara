@@ -18,7 +18,7 @@ final class AndroidExportPlanTests: XCTestCase {
         XCTAssertNotEqual(first.packageIdentifier,
                           AndroidExportPlan.packageIdentifier(for: UUID()))
         XCTAssertNotNil(first.packageIdentifier.range(
-            of: "^com\\.wrapybara\\.site\\.w[a-f0-9]{32}$", options: .regularExpression))
+            of: "^ch\\.lkmc\\.wrapybara\\.site\\.w[a-f0-9]{32}$", options: .regularExpression))
         XCTAssertTrue(renamed.manifest.contains("android:versionCode=\"2\""))
     }
 
@@ -76,7 +76,7 @@ final class AndroidExportPlanTests: XCTestCase {
         for name in ["AndroidSiteActivity", "AndroidNavigationPolicy", "AndroidPageColors",
                      "AndroidPullGesture", "AndroidReloadIndicator", "AndroidShortcuts"] {
             let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "java.txt"))
-            XCTAssertTrue(try String(contentsOf: url).contains("package com.wrapybara.runtime;"))
+            XCTAssertTrue(try String(contentsOf: url).contains("package ch.lkmc.wrapybara.runtime;"))
         }
     }
 }

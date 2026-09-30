@@ -1,4 +1,4 @@
-package com.wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;

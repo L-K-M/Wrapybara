@@ -1,4 +1,4 @@
-package com.wrapybara.runtime;
+package ch.lkmc.wrapybara.runtime;
 
 import java.net.IDN;
 import java.net.URI;

@@ -488,7 +488,7 @@ final class SiteAppDelegate: NSObject, NSApplicationDelegate {
     /// stores no path back to the builder, precisely so that moving or deleting
     /// Wrapybara can't break it.
     static func openWrapybara() {
-        let identifier = "com.wrapybara.Wrapybara"
+        let identifier = "ch.lkmc.Wrapybara"
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true

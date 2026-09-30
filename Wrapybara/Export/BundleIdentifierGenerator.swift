@@ -12,13 +12,13 @@ import Foundation
 enum BundleIdentifierGenerator {
 
     /// The prefix for every generated app. Distinct from Wrapybara's own
-    /// `com.wrapybara.Wrapybara` so a wrap can never collide with the builder.
-    static let prefix = "com.wrapybara.site"
+    /// `ch.lkmc.Wrapybara` so a wrap can never collide with the builder.
+    static let prefix = "ch.lkmc.Wrapybara.site"
 
-    /// A deterministic identifier for a site: `com.wrapybara.site.<host>.<name>`,
+    /// A deterministic identifier for a site: `ch.lkmc.Wrapybara.site.<host>.<name>`,
     /// with the host's labels reversed the way reverse-DNS wants them.
     ///
-    /// `claude.ai` + "Claude" → `com.wrapybara.site.ai.claude.claude`
+    /// `claude.ai` + "Claude" → `ch.lkmc.Wrapybara.site.ai.claude.claude`
     static func identifier(forHost host: String, name: String) -> String {
         let hostLabels = BoostMatcher.normalizedHost(host)
             .split(separator: ".")

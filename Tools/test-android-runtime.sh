@@ -14,5 +14,5 @@ for name in "${pure_classes[@]}"; do
 done
 javac -d "$test_dir" "${sources[@]}"
 for name in "${pure_classes[@]}"; do
-    java -cp "$test_dir" "com.wrapybara.runtime.${name}Test"
+    java -cp "$test_dir" "ch.lkmc.wrapybara.runtime.${name}Test"
 done
