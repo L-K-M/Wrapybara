@@ -18,7 +18,7 @@ final class AndroidExportPlanTests: XCTestCase {
         XCTAssertNotEqual(first.packageIdentifier,
                           AndroidExportPlan.packageIdentifier(for: UUID()))
         XCTAssertNotNil(first.packageIdentifier.range(
-            of: "^com\\.wrapybara\\.site\\.w[a-f0-9]{32}$", options: .regularExpression))
+            of: "^ch\\.lkmc\\.wrapybara\\.site\\.w[a-f0-9]{32}$", options: .regularExpression))
         XCTAssertTrue(renamed.manifest.contains("android:versionCode=\"2\""))
     }
 
