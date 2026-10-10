@@ -15,6 +15,7 @@ struct BoostEditorView: View {
     private enum Pane: String, CaseIterable, Identifiable {
         case look = "Look"
         case zap = "Zap"
+        case style = "Style"
         case code = "Code"
         case scope = "Scope"
 
@@ -87,6 +88,7 @@ struct BoostEditorView: View {
         switch pane {
         case .look: lookPane
         case .zap: zapPane
+        case .style: stylePane
         case .code: codePane
         case .scope: scopePane
         }
@@ -170,7 +172,7 @@ struct BoostEditorView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Pick an Element…") {
-                    model.beginPickingElement(for: boost, in: wrap)
+                    model.beginPickingElement(for: boost, in: wrap, purpose: .zap)
                 }
                 .disabled(!isPreviewShown)
                 .help(isPreviewShown ? "Choose an element in the preview"
@@ -212,6 +214,94 @@ struct BoostEditorView: View {
                 .listStyle(.inset)
             }
         }
+    }
+
+    // MARK: Style
+
+    private var stylePane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Styled elements")
+                    .font(.headline)
+                Text("Click **Pick an Element** and choose something in the preview, then give "
+                     + "it CSS declarations. Each one is marked !important so it wins over the "
+                     + "site's own rules.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button("Pick an Element…") {
+                    model.beginPickingElement(for: boost, in: wrap, purpose: .style)
+                }
+                .disabled(!isPreviewShown)
+                .help(isPreviewShown ? "Choose an element in the preview"
+                      : "Show the preview first")
+            }
+            .padding(14)
+
+            Divider()
+
+            if boost.elementStyles.isEmpty {
+                Text("Nothing styled yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(14)
+                Spacer()
+            } else {
+                List {
+                    ForEach(boost.elementStyles) { style in
+                        elementStyleRow(style)
+                    }
+                }
+                .listStyle(.inset)
+            }
+        }
+    }
+
+    private func elementStyleRow(_ style: ElementStyle) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                Text(style.selector)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                Spacer()
+                if !BoostCSSGenerator.isSafeSelector(style.selector) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .help("This selector can't be used. It contains a character "
+                              + "that would break out of the rule.")
+                }
+                Button {
+                    removeElementStyle(id: style.id)
+                } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.borderless)
+            }
+            TextField("Styles", text: declarationsBinding(for: style.id),
+                      prompt: Text("color: #c00; font-weight: 600"), axis: .vertical)
+                .font(.system(.callout, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...6)
+            if let problem = declarationsProblem(style.declarations) {
+                Text(problem)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Why a picked element's styles won't apply, or `nil` when they will (or are
+    /// still blank). The generator drops unusable styles silently; this is where
+    /// the user finds out.
+    private func declarationsProblem(_ declarations: String) -> String? {
+        guard !declarations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        guard let usable = BoostCSSGenerator.sanitizedDeclarations(declarations) else {
+            return "Not applied: braces, <, comments and unclosed quotes or brackets "
+                + "would break out of the rule."
+        }
+        return usable.isEmpty ? "Not applied: write each style as property: value." : nil
     }
 
     // MARK: Code
@@ -364,6 +454,19 @@ struct BoostEditorView: View {
         binding((\Boost.match).appending(path: keyPath))
     }
 
+    /// A `String` binding for one picked element's declarations, looked up by id so
+    /// it keeps pointing at the right row when another is removed.
+    private func declarationsBinding(for id: ElementStyle.ID) -> Binding<String> {
+        Binding(
+            get: { boost.elementStyles.first { $0.id == id }?.declarations ?? "" },
+            set: { newValue in
+                var updated = boost
+                guard let index = updated.elementStyles.firstIndex(where: { $0.id == id }) else { return }
+                updated.elementStyles[index].declarations = newValue
+                model.updateBoost(updated, in: wrap)
+            })
+    }
+
     /// A `String` binding over an optional field, where empty means "leave the site's
     /// own value alone".
     private func optionalStringBinding(
@@ -457,6 +560,12 @@ struct BoostEditorView: View {
         var updated = boost
         guard updated.zapSelectors.indices.contains(index) else { return }
         updated.zapSelectors.remove(at: index)
+        model.updateBoost(updated, in: wrap)
+    }
+
+    private func removeElementStyle(id: ElementStyle.ID) {
+        var updated = boost
+        updated.elementStyles.removeAll { $0.id == id }
         model.updateBoost(updated, in: wrap)
     }
 

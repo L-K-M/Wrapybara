@@ -10,8 +10,16 @@ extension LibraryModel {
 
     // MARK: Element picker
 
+    /// What a picked element is for.
+    enum ElementPickPurpose {
+        /// Hide it: the selector joins `zapSelectors`.
+        case zap
+        /// Restyle it: the selector joins `elementStyles`, with no declarations yet.
+        case style
+    }
+
     /// Runs the picker in the preview and appends whatever the user chooses.
-    func beginPickingElement(for boost: Boost, in wrap: Wrap) {
+    func beginPickingElement(for boost: Boost, in wrap: Wrap, purpose: ElementPickPurpose) {
         guard let preview = previewController, !isPickingElement else { return }
         isPickingElement = true
         preview.beginPicking { [weak self] selector in
@@ -23,9 +31,15 @@ extension LibraryModel {
             // Re-read the boost: the user may have edited something else while the picker
             // was up, and writing back a stale copy would undo it.
             guard let current = self.currentVersion(of: boost, in: wrap) else { return }
-            guard !current.zapSelectors.contains(trimmed) else { return }
             var updated = current
-            updated.zapSelectors.append(trimmed)
+            switch purpose {
+            case .zap:
+                guard !current.zapSelectors.contains(trimmed) else { return }
+                updated.zapSelectors.append(trimmed)
+            case .style:
+                guard !current.elementStyles.contains(where: { $0.selector == trimmed }) else { return }
+                updated.elementStyles.append(ElementStyle(selector: trimmed))
+            }
             self.updateBoost(updated, in: wrap)
         }
     }

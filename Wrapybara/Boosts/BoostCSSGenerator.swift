@@ -16,14 +16,17 @@ enum BoostCSSGenerator {
 
     // MARK: Entry points
 
-    /// The stylesheet for one boost: theme, then zapped elements, then the user's
-    /// own CSS last so it can override everything above it.
+    /// The stylesheet for one boost: theme, then styled elements, then zapped
+    /// elements (hiding something beats restyling it), then the user's own CSS last
+    /// so it can override everything above it.
     static func stylesheet(for boost: Boost) -> String {
         var blocks: [String] = []
         if !boost.theme.isNeutral {
             let theme = themeCSS(boost.theme)
             if !theme.isEmpty { blocks.append(theme) }
         }
+        let styled = elementStylesCSS(boost.elementStyles)
+        if !styled.isEmpty { blocks.append(styled) }
         let zap = zapCSS(boost.zapSelectors)
         if !zap.isEmpty { blocks.append(zap) }
         let custom = boost.css.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,6 +70,102 @@ enum BoostCSSGenerator {
               !selector.contains("<") else { return false }
         // A trailing comma would swallow whatever selector follows it in the list.
         return !selector.hasSuffix(",") && !selector.hasPrefix(",")
+    }
+
+    // MARK: Styled elements
+
+    /// One rule per picked element, each declaration marked `!important`.
+    ///
+    /// `!important` because a picked element is usually styled by the site with a
+    /// more specific selector than the picker's, and a restyle that silently loses
+    /// to it would look like the feature doing nothing. A rule whose selector or
+    /// declarations can't be used safely is dropped whole, like a zap selector.
+    static func elementStylesCSS(_ styles: [ElementStyle]) -> String {
+        let rules = styles.compactMap { style -> String? in
+            let selector = style.selector.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !selector.isEmpty, isSafeSelector(selector),
+                  let declarations = sanitizedDeclarations(style.declarations),
+                  !declarations.isEmpty else { return nil }
+            let body = declarations.map { "  \($0);" }.joined(separator: "\n")
+            return "\(selector) {\n\(body)\n}"
+        }
+        guard !rules.isEmpty else { return "" }
+        return "/* styled elements */\n" + rules.joined(separator: "\n\n")
+    }
+
+    /// Splits a declaration list into `property: value !important` lines, or
+    /// returns `nil` when the text could break out of the rule it goes into.
+    ///
+    /// Braces, `<` and comment markers are refused outright. Strings, parentheses
+    /// and brackets must also close: CSS parses an unclosed `(` or `[` as a block
+    /// that runs to the end of the stylesheet, swallowing the closing brace and
+    /// every rule after it. Semicolons split declarations only outside those, so
+    /// `url("a;b")` stays whole. A piece that isn't `property: value` is dropped
+    /// on its own, the way a browser would ignore it.
+    static func sanitizedDeclarations(_ raw: String) -> [String]? {
+        let forbidden: [Character] = ["{", "}", "<"]
+        guard !raw.contains(where: forbidden.contains),
+              !raw.contains("/*"), !raw.contains("*/") else { return nil }
+
+        var pieces: [String] = []
+        var current = ""
+        var quote: Character?
+        var open: [Character] = []
+        var isEscaped = false
+        for character in raw {
+            if isEscaped {
+                isEscaped = false
+                current.append(character)
+                continue
+            }
+            if character == "\\" {
+                isEscaped = true
+                current.append(character)
+                continue
+            }
+            if let delimiter = quote {
+                // CSS ends an unclosed string at the line break; refuse it instead.
+                if character.isNewline { return nil }
+                if character == delimiter { quote = nil }
+                current.append(character)
+                continue
+            }
+            switch character {
+            case "\"", "'":
+                quote = character
+            case "(":
+                open.append(")")
+            case "[":
+                open.append("]")
+            case ")", "]":
+                guard open.popLast() == character else { return nil }
+            case ";" where open.isEmpty:
+                pieces.append(current)
+                current = ""
+                continue
+            default:
+                break
+            }
+            current.append(character)
+        }
+        guard quote == nil, open.isEmpty, !isEscaped else { return nil }
+        pieces.append(current)
+
+        return pieces.compactMap(importantDeclaration)
+    }
+
+    /// `property: value !important` for one declaration, or `nil` when it has no
+    /// usable property name or value.
+    private static func importantDeclaration(_ raw: String) -> String? {
+        guard let colon = raw.firstIndex(of: ":") else { return nil }
+        let property = raw[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = raw[raw.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        let isPropertyName = property.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+        guard !property.isEmpty, isPropertyName, !value.isEmpty else { return nil }
+
+        let compact = value.lowercased().filter { !$0.isWhitespace }
+        if compact.hasSuffix("!important") { return "\(property): \(value)" }
+        return "\(property): \(value) !important"
     }
 
     // MARK: Theme

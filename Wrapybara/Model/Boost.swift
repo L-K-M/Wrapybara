@@ -1,7 +1,8 @@
 import Foundation
 
-/// One site customization: knobs (`theme`), hidden elements (`zapSelectors`), and
-/// the two escape hatches (`css`, `javaScript`).
+/// One site customization: knobs (`theme`), restyled elements (`elementStyles`),
+/// hidden elements (`zapSelectors`), and the two escape hatches (`css`,
+/// `javaScript`).
 ///
 /// A boost is a value type with no reference to the page it will be applied to;
 /// `BoostMatcher` decides *whether* it applies and `BoostCSSGenerator` /
@@ -35,6 +36,8 @@ struct Boost: Codable, Identifiable, Equatable {
     /// element picker can add and remove them one at a time, and so un-zapping a
     /// single element doesn't mean re-parsing a stylesheet.
     var zapSelectors: [String]
+    /// Picked elements with styles of their own, added by the element picker.
+    var elementStyles: [ElementStyle]
     var css: String
     var javaScript: String
     var javaScriptInjectionTime: InjectionTime
@@ -56,6 +59,7 @@ struct Boost: Codable, Identifiable, Equatable {
          match: BoostMatch = .everywhere,
          theme: BoostTheme = .neutral,
          zapSelectors: [String] = [],
+         elementStyles: [ElementStyle] = [],
          css: String = "",
          javaScript: String = "",
          javaScriptInjectionTime: InjectionTime = .documentEnd,
@@ -69,6 +73,7 @@ struct Boost: Codable, Identifiable, Equatable {
         self.match = match
         self.theme = theme
         self.zapSelectors = zapSelectors
+        self.elementStyles = elementStyles
         self.css = css
         self.javaScript = javaScript
         self.javaScriptInjectionTime = javaScriptInjectionTime
@@ -96,14 +101,27 @@ struct Boost: Codable, Identifiable, Equatable {
     var isEmpty: Bool {
         theme.isNeutral
             && zapSelectors.isEmpty
+            && !hasElementStyles
             && css.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !hasRunnableJavaScript
+    }
+
+    /// Whether any picked element carries a declaration. A picked element whose
+    /// styles are still blank does nothing, so it doesn't count.
+    var hasElementStyles: Bool { styledElementCount > 0 }
+
+    private var styledElementCount: Int {
+        elementStyles.filter { !$0.declarations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
     }
 
     /// A one-line description of what this boost carries, for the library list.
     var contentsSummary: String {
         var parts: [String] = []
         if !theme.isNeutral { parts.append("theme") }
+        if hasElementStyles {
+            let count = styledElementCount
+            parts.append("\(count) styled element\(count == 1 ? "" : "s")")
+        }
         if !zapSelectors.isEmpty {
             parts.append("\(zapSelectors.count) zapped element\(zapSelectors.count == 1 ? "" : "s")")
         }
@@ -116,7 +134,7 @@ struct Boost: Codable, Identifiable, Equatable {
     // MARK: Codable
 
     enum CodingKeys: String, CodingKey {
-        case id, name, isEnabled, match, theme, zapSelectors, css
+        case id, name, isEnabled, match, theme, zapSelectors, elementStyles, css
         case javaScript, javaScriptInjectionTime, isJavaScriptTrusted
         case notes, createdAt, updatedAt
     }
@@ -132,6 +150,7 @@ struct Boost: Codable, Identifiable, Equatable {
         self.match = c.value(.match, or: BoostMatch.everywhere)
         self.theme = c.value(.theme, or: BoostTheme.neutral)
         self.zapSelectors = c.value(.zapSelectors, or: [String]())
+        self.elementStyles = c.value(.elementStyles, or: [ElementStyle]())
         self.css = c.value(.css, or: "")
         self.javaScript = c.value(.javaScript, or: "")
         self.javaScriptInjectionTime = c.value(.javaScriptInjectionTime, or: InjectionTime.documentEnd)

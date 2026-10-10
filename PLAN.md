@@ -256,11 +256,12 @@ notifications are outside this first runtime.
 
 ## 4. Boosts
 
-A boost is a value type with four parts and a scope.
+A boost is a value type with five parts and a scope.
 
 | Part | What it is |
 | --- | --- |
 | `theme` | Knobs: background/text/link/accent colour, colour *reach*, font stacks, text size and line height, case, readable width, brightness/contrast/saturation/hue/invert/greyscale, corner radius, hide images. |
+| `elementStyles` | Picked selectors, each with its own CSS declarations, marked `!important` on output. |
 | `zapSelectors` | CSS selectors to hide, added one at a time by the element picker. |
 | `css` | Your own CSS. Emitted last, so it always wins. |
 | `javaScript` | Your own script, at `documentStart` or `documentEnd`, gated on a trust flag. |
@@ -275,8 +276,12 @@ load-bearing:
 2. **Values that don't parse are dropped, not escaped.** A colour that isn't a
    colour emits no declaration. A zap selector containing a brace is discarded
    rather than mangled into something that no longer selects what the user picked.
+   A styled element's declarations are refused whole if they carry a brace, `<`, a
+   comment marker, or an unclosed string, parenthesis or bracket, any of which
+   would let them escape their rule.
 3. **Order is fixed.** Filters, then colours (blanket rules before the link rule
-   that has to survive them), then type, then surfaces, then zaps, then user CSS.
+   that has to survive them), then type, then surfaces, then styled elements, then
+   zaps (hiding beats restyling), then user CSS.
 
 ### The honest limitation
 
