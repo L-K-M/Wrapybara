@@ -454,8 +454,8 @@ struct BoostEditorView: View {
         binding((\Boost.match).appending(path: keyPath))
     }
 
-    /// A `String` binding over an optional field, where empty means "leave the site's
-    /// own value alone".
+    /// A `String` binding for one picked element's declarations, looked up by id so
+    /// it keeps pointing at the right row when another is removed.
     private func declarationsBinding(for id: ElementStyle.ID) -> Binding<String> {
         Binding(
             get: { boost.elementStyles.first { $0.id == id }?.declarations ?? "" },
@@ -467,6 +467,8 @@ struct BoostEditorView: View {
             })
     }
 
+    /// A `String` binding over an optional field, where empty means "leave the site's
+    /// own value alone".
     private func optionalStringBinding(
         _ keyPath: WritableKeyPath<BoostTheme, String?>) -> Binding<String> {
         let inner = themeBinding(keyPath)

@@ -221,7 +221,7 @@ final class BoostCSSGeneratorTests: XCTestCase {
     func testDeclarationsThatCouldEscapeTheRuleAreRefused() {
         // Each of these would end the rule or swallow everything after it: an unclosed
         // `(` or `[` makes CSS read to the end of the stylesheet.
-        for raw in ["color: red } body { display: none", "color: red; /* x",
+        for raw in ["color: red } body { display: none", "color: red {", "color: red; /* x",
                     "content: '</style>'", "width: calc(1px", "color: red]",
                     "width: calc(1px]", "content: 'open", "content: \"a\nb\"",
                     "color: red\\"] {
