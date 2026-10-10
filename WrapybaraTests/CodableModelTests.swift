@@ -47,6 +47,7 @@ final class CodableModelTests: XCTestCase {
         var boost = Boost(name: "Zap ads", match: .domain("example.com"),
                           createdAt: fixedDate, updatedAt: fixedDate)
         boost.zapSelectors = ["#ads", ".promo"]
+        boost.elementStyles = [ElementStyle(selector: "h1", declarations: "color: red")]
         boost.css = "body { color: red }"
         boost.javaScript = "console.log('hi')"
         boost.isJavaScriptTrusted = true
@@ -79,6 +80,13 @@ final class CodableModelTests: XCTestCase {
         XCTAssertEqual(boost.match, .everywhere)
         XCTAssertEqual(boost.theme, .neutral)
         XCTAssertTrue(boost.isEnabled)
+        XCTAssertTrue(boost.elementStyles.isEmpty)
+    }
+
+    func testMinimalElementStyleDecodes() throws {
+        let style = try decode(ElementStyle.self, #"{"selector":"h1"}"#)
+        XCTAssertEqual(style.selector, "h1")
+        XCTAssertEqual(style.declarations, "")
     }
 
     func testUnknownKeysAreIgnored() throws {

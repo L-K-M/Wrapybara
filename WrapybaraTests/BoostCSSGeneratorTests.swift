@@ -178,6 +178,84 @@ final class BoostCSSGeneratorTests: XCTestCase {
         XCTAssertFalse(BoostCSSGenerator.isSafeSelector("<script>"))
     }
 
+    // MARK: Styled elements
+
+    func testElementStylesEmitOneImportantRulePerSelector() {
+        let css = BoostCSSGenerator.elementStylesCSS([
+            ElementStyle(selector: "h1.title", declarations: "color: #c00; font-weight: 600"),
+            ElementStyle(selector: "#nav", declarations: "opacity: 0.5 !important;"),
+        ])
+        XCTAssertEqual(css, """
+        /* styled elements */
+        h1.title {
+          color: #c00 !important;
+          font-weight: 600 !important;
+        }
+
+        #nav {
+          opacity: 0.5 !important;
+        }
+        """)
+    }
+
+    func testElementStylesSkipBlankDeclarationsAndUnsafeSelectors() {
+        XCTAssertEqual(BoostCSSGenerator.elementStylesCSS([]), "")
+        XCTAssertEqual(BoostCSSGenerator.elementStylesCSS([ElementStyle(selector: "#picked")]), "")
+        let css = BoostCSSGenerator.elementStylesCSS([
+            ElementStyle(selector: "} body { display: none", declarations: "color: red"),
+            ElementStyle(selector: "#ok", declarations: "color: blue"),
+        ])
+        XCTAssertFalse(css.contains("body {"))
+        XCTAssertTrue(css.contains("#ok {\n  color: blue !important;\n}"))
+    }
+
+    func testDeclarationsSplitOnlyOnTopLevelSemicolons() {
+        XCTAssertEqual(
+            BoostCSSGenerator.sanitizedDeclarations(#"background: url("a;b.png"); content: ';'"#),
+            [#"background: url("a;b.png") !important"#, "content: ';' !important"])
+        XCTAssertEqual(
+            BoostCSSGenerator.sanitizedDeclarations("grid-template-areas: [a] 1fr; --gap: calc(1px + 2px)"),
+            ["grid-template-areas: [a] 1fr !important", "--gap: calc(1px + 2px) !important"])
+    }
+
+    func testDeclarationsThatCouldEscapeTheRuleAreRefused() {
+        // Each of these would end the rule or swallow everything after it: an unclosed
+        // `(` or `[` makes CSS read to the end of the stylesheet.
+        for raw in ["color: red } body { display: none", "color: red; /* x",
+                    "content: '</style>'", "width: calc(1px", "color: red]",
+                    "width: calc(1px]", "content: 'open", "content: \"a\nb\"",
+                    "color: red\\"] {
+            XCTAssertNil(BoostCSSGenerator.sanitizedDeclarations(raw), raw)
+        }
+    }
+
+    func testDeclarationsWithoutPropertyAndValueAreDroppedIndividually() {
+        XCTAssertEqual(
+            BoostCSSGenerator.sanitizedDeclarations("red; : blue; color:; bad name: x; color: green"),
+            ["color: green !important"])
+    }
+
+    func testStyledElementsComeBeforeZapsSoHidingWins() {
+        var boost = Boost(name: "Test")
+        boost.elementStyles = [ElementStyle(selector: ".styled", declarations: "color: red")]
+        boost.zapSelectors = ["#ads"]
+        let css = BoostCSSGenerator.stylesheet(for: boost)
+        guard let styledIndex = css.range(of: ".styled")?.lowerBound,
+              let zapIndex = css.range(of: "#ads")?.lowerBound else {
+            return XCTFail("expected both blocks")
+        }
+        XCTAssertLessThan(styledIndex, zapIndex)
+    }
+
+    func testBoostWithOnlyBlankElementStylesIsEmpty() {
+        var boost = Boost(name: "Test")
+        boost.elementStyles = [ElementStyle(selector: "#picked", declarations: "  ")]
+        XCTAssertTrue(boost.isEmpty)
+        boost.elementStyles[0].declarations = "color: red"
+        XCTAssertFalse(boost.isEmpty)
+        XCTAssertEqual(boost.contentsSummary, "1 styled element")
+    }
+
     // MARK: Composition
 
     func testCustomCSSComesLastSoItWins() {

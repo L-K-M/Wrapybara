@@ -49,10 +49,17 @@ struct BoostPreviewView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Button("Pick an Element") {
-                    model.beginPickingElement(for: boost, in: wrap)
+                Menu("Pick an Element") {
+                    Button("To Zap") {
+                        model.beginPickingElement(for: boost, in: wrap, purpose: .zap)
+                    }
+                    Button("To Style") {
+                        model.beginPickingElement(for: boost, in: wrap, purpose: .style)
+                    }
                 }
+                .menuStyle(.button)
                 .buttonStyle(.borderless)
+                .fixedSize()
                 .font(.caption)
             }
         }

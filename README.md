@@ -68,6 +68,8 @@ real site beside the controls:
   Inverting keeps photographs looking right, the way the system's Smart Invert does.
 - **Zap** — click an element to hide it forever. **↑** widens the selection to its
   container, **↓** narrows it back, Esc cancels.
+- **Style**: pick an element the same way, then give it CSS of its own: a colour,
+  a size, a border. Your declarations win over the site's.
 - **Your own CSS and JavaScript**, applied last so they always win.
 - **Scoped** to everywhere, a domain, a URL prefix, a glob or a regex.
 - **Shared boosts** — write "hide cookie banners" once, switch it on per app.
