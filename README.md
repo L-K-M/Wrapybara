@@ -187,3 +187,10 @@ Gecko or Servo — and what would have to change for a Servo backend to make sen
 ## Why "Wrapybara"
 
 It wraps things, and a capybara is unbothered by anything.
+
+## License
+
+Wrapybara's own code is released under the [Unlicense](LICENSE). The app bundles no
+third-party code or assets: it links only Apple's system frameworks and the Swift
+runtime that ship with macOS. Exported Android APKs contain no third-party code
+either; their Java runtime is Wrapybara's own, compiled against your Android SDK.
