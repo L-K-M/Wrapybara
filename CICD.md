@@ -1,6 +1,7 @@
 # CI/CD
 
-Wrapybara is a Swift/Xcode macOS app with no dependencies. CI builds and tests it on
+Wrapybara is a Swift/Xcode macOS app whose only dependency is the first-party
+[Updraft](https://github.com/L-K-M/Updraft) package. CI builds and tests it on
 every change, and the release workflow produces an unsigned, ad-hoc-codesigned `.app`
 packaged as a `.zip` and `.dmg`, then publishes a GitHub Release.
 

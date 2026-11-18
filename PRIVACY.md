@@ -113,5 +113,7 @@ just the usage strings and the normal per-app system prompt.
 
 ## Third parties
 
-Wrapybara has no dependencies. It bundles no analytics SDK, no crash reporter and no
-advertising framework, because it bundles nothing at all.
+Wrapybara's one dependency is the author's own [Updraft](https://github.com/L-K-M/Updraft)
+update checker, which only the builder app runs and which talks to nothing but
+GitHub's public API and release downloads. Wrapybara bundles no analytics SDK, no
+crash reporter and no advertising framework.

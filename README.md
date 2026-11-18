@@ -153,7 +153,9 @@ Android has a smaller feature set:
 
 ## Build from source
 
-Requires **Xcode 16+**. No dependencies.
+Requires **Xcode 16+**. The only package is the author's
+[Updraft](https://github.com/L-K-M/Updraft) update checker, which Xcode fetches on the
+first build.
 
 ```sh
 xcodebuild -project Wrapybara.xcodeproj -scheme Wrapybara -configuration Debug build
