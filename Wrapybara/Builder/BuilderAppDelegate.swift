@@ -1,4 +1,5 @@
 import AppKit
+import UpdraftKit
 
 /// The app delegate Wrapybara itself runs under.
 final class BuilderAppDelegate: NSObject, NSApplicationDelegate {
@@ -10,7 +11,16 @@ final class BuilderAppDelegate: NSObject, NSApplicationDelegate {
                                                       exporter: exporter,
                                                       preferences: preferences)
     private let updateChecker = UpdateChecker(
-        configuration: .init(owner: "L-K-M", repo: "Wrapybara", appName: "Wrapybara")
+        configuration: .init(
+            owner: "L-K-M",
+            repo: "Wrapybara",
+            appName: "Wrapybara",
+            // The level clears transient panels (the element picker's overlay, a
+            // Boost editor sheet) so the modal can never end up *behind* one —
+            // an invisible modal that freezes input.
+            alertWindowLevel: NSWindow.Level(
+                rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+        )
     )
 
     // MARK: Lifecycle

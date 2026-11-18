@@ -478,7 +478,6 @@ Wrapybara/
                             WrapEditorView, BehaviorEditorView, BoostsTabView,
                             BoostEditorView, BoostPreviewController/View,
                             NewWrapView, BuilderSettingsView, AndroidExportView, CodeEditor
-  Updates/                  the shared GitHub-release updater
   Common/                   ProcessRunner
 AndroidRuntime/             Java runtime tests
 ```
@@ -508,7 +507,7 @@ per-wrap global hotkeys. A menu-bar mode for wraps that want to be a popover.
 Multiple named profiles per wrap (work/personal) as separate bundle identifiers.
 
 **Phase 5 — distribution.** Developer ID + notarization for Wrapybara itself.
-Sparkle or the existing updater with signature verification.
+Sparkle, or signature verification in the shared Updraft updater.
 
 **Phase 6 — a second engine.** A `SiteWebViewFactory` sibling backed by Servo,
 behind a per-wrap engine setting, revisited when Servo's platform coverage makes it

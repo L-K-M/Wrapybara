@@ -61,7 +61,7 @@ enum AppNameSanitizer {
 
     /// Whether `character` is a single control scalar. `CharacterSet` rather than
     /// `Unicode.Scalar.Properties` so the check reads the same way as the one in
-    /// `UpdateDownloader.sanitizedFileName`.
+    /// `UpdateDownloader.sanitizedFileName(_:fallback:)`.
     static func isControl(_ character: Character) -> Bool {
         guard character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first
         else { return false }

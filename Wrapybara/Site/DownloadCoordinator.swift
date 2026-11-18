@@ -1,4 +1,5 @@
 import AppKit
+import UpdraftCore
 // WebKit carries no `Sendable` annotations, so importing it normally warns on every
 // delegate callback that crosses an isolation boundary. `@preconcurrency` is the
 // documented suppression for a framework that predates strict concurrency.
@@ -83,8 +84,13 @@ final class DownloadCoordinator: NSObject {
     func destination(for suggestedFilename: String) throws -> URL {
         let downloads = try fileManager.url(for: .downloadsDirectory, in: .userDomainMask,
                                             appropriateFor: nil, create: true)
+        // Pre-sanitise with the same fallback the updater uses, so a server-supplied
+        // name that reduces to nothing lands as "Wrapybara-update" rather than
+        // Updraft's generic "update".
+        let fileName = UpdateDownloader.sanitizedFileName(suggestedFilename,
+                                                          fallback: "Wrapybara-update")
         return try UpdateDownloader.uniqueDestination(in: downloads,
-                                                      fileName: suggestedFilename,
+                                                      fileName: fileName,
                                                       fileManager: fileManager)
     }
 }

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UpdraftKit
 
 /// Wrapybara's window: wraps on the left, the selected wrap's editor on the right.
 struct LibraryView: View {
