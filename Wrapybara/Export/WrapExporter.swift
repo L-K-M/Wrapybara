@@ -1,4 +1,5 @@
 import AppKit
+import UpdraftKit
 
 /// Builds a wrap into an app, and keeps already-built apps up to date.
 ///

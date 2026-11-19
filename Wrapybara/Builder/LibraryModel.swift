@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+import UpdraftKit
 
 /// View state and actions for the library window.
 ///

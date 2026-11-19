@@ -96,7 +96,11 @@ both directions are handled:
 
 ### Supply chain
 
-- **No dependencies.** Nothing to audit, pin or wait on.
+- **One first-party dependency.** The update checker is the author's public-domain
+  [Updraft](https://github.com/L-K-M/Updraft) package, which has no dependencies of
+  its own. It is pinned by version in the committed `Package.resolved`, so an update
+  reaches Wrapybara only through a reviewed pin change. Nothing else to audit, pin or
+  wait on.
 - Every GitHub Action is **pinned to a commit SHA**, including in the privileged
   review workflow. Mutable tags can be repointed at tampered code.
 - `release.yml` checks out with `persist-credentials: false` — nothing in that job

@@ -30,7 +30,14 @@ The Mac builder also exports standalone Android APKs with a separate Java runtim
   Keychain) and
   `AndroidExports/<package>.json` retains update versions; app-level settings in
   `UserDefaults`.
-- **Dependencies:** none. Keep it that way.
+- **Dependencies:** one first-party package, nothing else. The builder's update
+  check comes from [Updraft](https://github.com/L-K-M/Updraft) (`UpdraftKit`), the
+  author's update checker shared with the sibling apps. It is public domain, has no
+  dependencies of its own, is referenced by tag with an up-to-next-minor rule, and
+  its resolved version is committed in the Xcode project's `Package.resolved`. Fix
+  updater behaviour in Updraft, release it, then raise the pin here. It must stay
+  statically linked: a generated site app copies only Wrapybara's executable, so a
+  package framework in `Contents/Frameworks` would not be there.
 - **Min target:** macOS 13 (Ventura). **Built with Xcode 16+**
   (file-system-synchronized groups, `NavigationSplitView`, `LabeledContent`).
 - **Android export:** Android 8+ (API 26), target API 35; local SDK Platform 35,
@@ -85,7 +92,7 @@ Consequences that will bite you if you forget them:
 ## Module Layout
 
 Mirrors `PLAN.md §6`. Keep modules aligned: `Model/`, `Boosts/`, `Store/`, `Export/`,
-`Icons/`, `Site/`, `Builder/`, `Updates/`, `Common/`.
+`Icons/`, `Site/`, `Builder/`, `Common/`. Update checks come from Updraft.
 
 Android export lives in `Export/`; its Java runtime sources are `*.java.txt`
 resources bundled with the builder and compiled at export time. Keep their class
@@ -230,7 +237,8 @@ Java tests, run by `Tools/test-android-runtime.sh`.
 - **Do** state a trade-off in the UI when there is one. The aggressive colour reach
   says what it will break, next to the switch. That's the house style: honest about
   heuristics rather than quietly wrong.
-- **Don't** add dependencies. Not for HTML parsing (`SiteMarkupParser` deliberately
+- **Don't** add dependencies (Updraft, above, is the one first-party exception).
+  Not for HTML parsing (`SiteMarkupParser` deliberately
   scans rather than parses — loading a fetched page into a `WKWebView` to read its
   icon URL would mean *executing* it), not for JSON, not for icons.
 - **Don't** grow a browser. No omnibox, no history UI, no bookmarks, no extensions.

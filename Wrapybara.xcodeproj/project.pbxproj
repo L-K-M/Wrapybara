@@ -6,6 +6,10 @@
 	objectVersion = 70;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA000000000000000000001C /* UpdraftKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000000000000000000001F /* UpdraftKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		AA000000000000000000001A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -31,6 +35,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000000000000000000001C /* UpdraftKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,6 +87,7 @@
 			);
 			name = Wrapybara;
 			packageProductDependencies = (
+				AA000000000000000000001F /* UpdraftKit */,
 			);
 			productName = Wrapybara;
 			productReference = AA0000000000000000000006 /* Wrapybara.app */;
@@ -137,6 +143,7 @@
 			);
 			mainGroup = AA0000000000000000000002;
 			packageReferences = (
+				AA000000000000000000001E /* XCRemoteSwiftPackageReference "Updraft" */,
 			);
 			productRefGroup = AA0000000000000000000003 /* Products */;
 			projectDirPath = "";
@@ -417,6 +424,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000000000000000000001E /* XCRemoteSwiftPackageReference "Updraft" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/L-K-M/Updraft";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000000000000000000001F /* UpdraftKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000000000000000000001E /* XCRemoteSwiftPackageReference "Updraft" */;
+			productName = UpdraftKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA0000000000000000000001 /* Project object */;
 }

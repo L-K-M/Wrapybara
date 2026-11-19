@@ -1,4 +1,5 @@
 import AppKit
+import UpdraftKit
 import WebKit
 
 /// The app delegate a generated app runs under.

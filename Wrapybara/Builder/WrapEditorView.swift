@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UpdraftKit
 
 /// The detail pane: everything about one wrap, in three tabs.
 struct WrapEditorView: View {
