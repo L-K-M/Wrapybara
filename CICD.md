@@ -14,11 +14,12 @@ packaged as a `.zip` and `.dmg`, then publishes a GitHub Release.
 
 ## Continuous integration (`ci.yml`)
 
-Runs a single **Build & Test** job on `macos-14`. In-progress runs for the same ref
+Runs a single **Build & Test** job on `macos-15`. In-progress runs for the same ref
 are cancelled when a new commit is pushed.
 
-- Selects **Xcode 16.2** via `maxim-lobanov/setup-xcode` — pinned so a runner-image
-  bump can't silently change the toolchain.
+- Selects **Xcode 16.4** via `maxim-lobanov/setup-xcode` — a major.minor pin, so a
+  runner-image bump can't silently change the toolchain; only a 16.4.x patch on the
+  image could still change it.
 - Installs `xcbeautify` (for readable build logs).
 - Runs `xcodebuild clean test` against the `Wrapybara` scheme in
   `Wrapybara.xcodeproj`, destination `platform=macOS`, with
@@ -41,7 +42,8 @@ xcodebuild \
   clean test | xcbeautify
 ```
 
-This requires Xcode 16.2 to match CI exactly. `xcbeautify` is optional (install with
+This requires Xcode 16.4 (which itself requires macOS 15.3 or later) to match CI
+exactly. `xcbeautify` is optional (install with
 `brew install xcbeautify`); drop the pipe to use raw `xcodebuild` output.
 
 The test suite needs no network and no GUI session: everything that touches a web
@@ -66,8 +68,8 @@ scripts/release.sh 1.2.3 --push
 ```
 
 The version is derived from the tag with the leading `v` stripped (e.g. `v1.2.3` →
-`1.2.3`), and the build number is the workflow run number. The job runs on `macos-14`
-with Xcode 16.2.
+`1.2.3`), and the build number is the workflow run number. The job runs on `macos-15`
+with Xcode 16.4.
 
 It produces:
 

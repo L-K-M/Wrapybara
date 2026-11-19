@@ -19,7 +19,7 @@ env:
 jobs:
   release:
     name: Build & publish (unsigned)
-    runs-on: macos-14
+    runs-on: macos-15
     # don't let a wedged xcodebuild stall a release for 6h
     timeout-minutes: 45
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '16.2'
+          xcode-version: '16.4'
 
       - name: Install tooling
         run: brew install xcbeautify create-dmg
