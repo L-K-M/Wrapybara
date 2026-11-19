@@ -56,7 +56,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '16.4'   # pin so a runner-image bump can't change the toolchain
+          xcode-version: '16.4'   # pin major.minor; only a 16.4.x patch on the image could still change it
 
       - name: Install xcbeautify
         run: brew install xcbeautify
