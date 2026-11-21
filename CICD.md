@@ -25,6 +25,9 @@ are cancelled when a new commit is pushed.
 - Runs `xcodebuild clean test` against the `Wrapybara` scheme in
   `Wrapybara.xcodeproj`, destination `platform=macOS`, with
   `CODE_SIGNING_ALLOWED=NO`, writing results to `TestResults.xcresult`.
+- Builds a Release app and checks that its executable contains Updraft and
+  loads only system libraries. Release packaging runs the same check because
+  exported site apps copy only the main executable.
 - On failure, uploads `TestResults.xcresult` as an artifact named `TestResults`.
 
 Every action is pinned to a commit SHA: a mutable tag can be repointed at tampered
